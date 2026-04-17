@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
+    "install:local": "bash ./scripts/install-local.sh",
     "print": "tsx src/cli.ts --print",
     "test": "vitest run"
   },
