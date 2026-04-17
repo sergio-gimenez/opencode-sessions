@@ -4,7 +4,7 @@
   "description": "OpenCode session picker across all local projects",
   "main": "dist/cli.js",
   "bin": {
-    "ocsessions": "dist/cli.js"
+    "ocs": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

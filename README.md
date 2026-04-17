@@ -42,7 +42,7 @@ Build the CLI:
 npm run build
 ```
 
-Install `ocsessions` into `~/.local/bin` without root:
+Install `ocs` into `~/.local/bin` without root:
 
 ```bash
 npm run install:local

@@ -4,7 +4,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BIN_DIR="${HOME}/.local/bin"
-TARGET="${BIN_DIR}/ocsessions"
+TARGET="${BIN_DIR}/ocs"
+LEGACY_TARGET="${BIN_DIR}/ocsessions"
 
 mkdir -p "${BIN_DIR}"
 cd "${ROOT_DIR}"
@@ -17,5 +18,6 @@ exec node "${ROOT_DIR}/dist/cli.js" "\$@"
 EOF
 
 chmod +x "${TARGET}"
+rm -f "${LEGACY_TARGET}"
 
-printf 'Installed ocsessions at %s\n' "${TARGET}"
+printf 'Installed ocs at %s\n' "${TARGET}"
