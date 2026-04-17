@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
-    "print": "tsx src/cli.ts --print"
+    "print": "tsx src/cli.ts --print",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.6.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
   }
 }

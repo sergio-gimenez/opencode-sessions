@@ -1,32 +1,11 @@
 import type BetterSqlite3 from "better-sqlite3"
 
+import { collapseWhitespace, formatUpdatedAt, parseTextPart, truncate } from "./format.js"
 import { openDatabase } from "./db.js"
-import type { PromptRow, SessionPreview, SessionRow } from "./types.js"
+import type { PromptRow, SessionPreview, SessionRow, SessionSearchScope } from "./types.js"
 
 const SESSION_LIMIT = 200
 const PROMPT_LIMIT = 3
-const TEXT_LIMIT = 140
-
-function collapseWhitespace(value: string) {
-  return value.replace(/\s+/g, " ").trim()
-}
-
-function truncate(value: string, max = TEXT_LIMIT) {
-  if (value.length <= max) return value
-  return `${value.slice(0, max - 1).trimEnd()}...`
-}
-
-function formatUpdatedAt(timestamp: number) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(timestamp))
-}
-
-function parseTextPart(value: string) {
-  const parsed = JSON.parse(value) as { text?: string }
-  return collapseWhitespace(parsed.text ?? "")
-}
 
 function listSessions(db: BetterSqlite3.Database, limit: number): SessionRow[] {
   const stmt = db.prepare<unknown[], SessionRow>(`
@@ -40,7 +19,7 @@ function listSessions(db: BetterSqlite3.Database, limit: number): SessionRow[] {
   return stmt.all(limit)
 }
 
-function listPromptRows(db: BetterSqlite3.Database, sessionIds: string[]): PromptRow[] {
+function listPromptRows(db: BetterSqlite3.Database, sessionIds: string[], role: "user" | "assistant"): PromptRow[] {
   if (sessionIds.length === 0) return []
 
   const placeholders = sessionIds.map(() => "?").join(",")
@@ -57,58 +36,74 @@ function listPromptRows(db: BetterSqlite3.Database, sessionIds: string[]): Promp
       from message m
       join part p on p.message_id = m.id
       where m.session_id in (${placeholders})
-        and json_extract(m.data, '$.role') = 'user'
+        and json_extract(m.data, '$.role') = ?
         and json_extract(p.data, '$.type') = 'text'
     ) ranked
     where ranked.rank <= ?
     order by ranked.session_id, ranked.rank
   `)
 
-  return stmt.all(...sessionIds, PROMPT_LIMIT)
+  return stmt.all(...sessionIds, role, PROMPT_LIMIT)
 }
 
-export function getSessionPreviews(options?: { dbPath?: string; limit?: number }) {
+function collectTexts(rows: PromptRow[]) {
+  const previewBySession = new Map<string, string[]>()
+  const searchBySession = new Map<string, string[]>()
+
+  for (const row of rows) {
+    const text = parseTextPart(row.text)
+    if (!text) continue
+
+    const preview = previewBySession.get(row.session_id) ?? []
+    const search = searchBySession.get(row.session_id) ?? []
+
+    preview.push(truncate(text))
+    search.push(text)
+
+    previewBySession.set(row.session_id, preview)
+    searchBySession.set(row.session_id, search)
+  }
+
+  return { previewBySession, searchBySession }
+}
+
+export function buildSessionPreviews(
+  sessions: SessionRow[],
+  userRows: PromptRow[],
+  assistantRows: PromptRow[],
+  scope: SessionSearchScope,
+) {
+  const userTexts = collectTexts(userRows)
+  const assistantTexts = collectTexts(assistantRows)
+
+  return sessions.map<SessionPreview>((session) => ({
+    id: session.id,
+    title: session.title,
+    directory: session.directory,
+    projectId: session.project_id,
+    updatedAtMs: session.time_updated,
+    updatedAtLabel: formatUpdatedAt(session.time_updated),
+    prompts: userTexts.previewBySession.get(session.id) ?? [],
+    assistantSnippets: assistantTexts.previewBySession.get(session.id) ?? [],
+    searchText: [
+      session.title,
+      session.directory,
+      ...(userTexts.searchBySession.get(session.id) ?? []),
+      ...(scope === "all" ? (assistantTexts.searchBySession.get(session.id) ?? []) : []),
+    ].join("\n"),
+  }))
+}
+
+export function getSessionPreviews(options?: { dbPath?: string; limit?: number; search?: SessionSearchScope }) {
   const db = openDatabase(options?.dbPath)
 
   try {
     const sessions = listSessions(db, options?.limit ?? SESSION_LIMIT)
-    const promptRows = listPromptRows(
-      db,
-      sessions.map((session) => session.id),
-    )
+    const sessionIds = sessions.map((session) => session.id)
+    const userRows = listPromptRows(db, sessionIds, "user")
+    const assistantRows = listPromptRows(db, sessionIds, "assistant")
 
-    const promptsBySession = new Map<string, string[]>()
-    const searchTextBySession = new Map<string, string[]>()
-
-    for (const row of promptRows) {
-      const text = parseTextPart(row.text)
-
-      if (!text) continue
-
-      const prompts = promptsBySession.get(row.session_id) ?? []
-      const searchTexts = searchTextBySession.get(row.session_id) ?? []
-
-      prompts.push(truncate(text))
-      searchTexts.push(text)
-
-      promptsBySession.set(row.session_id, prompts)
-      searchTextBySession.set(row.session_id, searchTexts)
-    }
-
-    return sessions.map<SessionPreview>((session) => ({
-      id: session.id,
-      title: session.title,
-      directory: session.directory,
-      projectId: session.project_id,
-      updatedAtMs: session.time_updated,
-      updatedAtLabel: formatUpdatedAt(session.time_updated),
-      prompts: promptsBySession.get(session.id) ?? [],
-      searchText: [
-        session.title,
-        session.directory,
-        ...(searchTextBySession.get(session.id) ?? []),
-      ].join("\n"),
-    }))
+    return buildSessionPreviews(sessions, userRows, assistantRows, options?.search ?? "user")
   } finally {
     db.close()
   }

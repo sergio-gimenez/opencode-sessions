@@ -6,6 +6,7 @@ export type SessionPreview = {
   updatedAtMs: number
   updatedAtLabel: string
   prompts: string[]
+  assistantSnippets: string[]
   searchText: string
 }
 
@@ -21,3 +22,5 @@ export type PromptRow = {
   session_id: string
   text: string
 }
+
+export type SessionSearchScope = "user" | "all"
