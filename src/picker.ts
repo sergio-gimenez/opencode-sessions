@@ -4,6 +4,7 @@ import { searchSessions } from "./sessions.js"
 import type { SessionPreview } from "./types.js"
 
 const PAGE_SIZE = 10
+const LEFT_WIDTH = 52
 
 function clearScreen() {
   process.stdout.write("\x1Bc")
@@ -21,10 +22,78 @@ function cyan(value: string) {
   return `\x1b[36m${value}\x1b[0m`
 }
 
-function renderPreview(session: SessionPreview) {
+function yellow(value: string) {
+  return `\x1b[33m${value}\x1b[0m`
+}
+
+function splitTerms(query: string) {
+  return query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+function highlightTerms(value: string, query: string) {
+  const terms = splitTerms(query)
+  if (terms.length === 0) return value
+
+  let result = value
+
+  for (const term of terms) {
+    const pattern = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")
+    result = result.replace(pattern, (match) => yellow(match))
+  }
+
+  return result
+}
+
+function padLine(value: string, width: number) {
+  const plain = value.replace(/\x1b\[[0-9;]*m/g, "")
+  if (plain.length >= width) return value
+  return `${value}${" ".repeat(width - plain.length)}`
+}
+
+function wrapText(value: string, width: number) {
+  if (width <= 0) return [value]
+
+  const words = value.split(" ")
+  const lines: string[] = []
+  let current = ""
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word
+
+    if (next.length > width && current) {
+      lines.push(current)
+      current = word
+      continue
+    }
+
+    current = next
+  }
+
+  if (current) lines.push(current)
+  return lines.length > 0 ? lines : [""]
+}
+
+function renderColumns(left: string[], right: string[]) {
+  const total = Math.max(left.length, right.length)
+  const lines: string[] = []
+
+  for (let index = 0; index < total; index += 1) {
+    const leftLine = padLine(left[index] ?? "", LEFT_WIDTH)
+    const rightLine = right[index] ?? ""
+    lines.push(`${leftLine}  ${rightLine}`)
+  }
+
+  return lines.join("\n")
+}
+
+function renderPreview(session: SessionPreview, query: string) {
   const lines = [
-    bold(session.title),
-    dim(session.directory),
+    bold(highlightTerms(session.title, query)),
+    dim(highlightTerms(session.directory, query)),
     dim(`${session.updatedAtLabel}  ${session.id}`),
     "",
   ]
@@ -33,7 +102,7 @@ function renderPreview(session: SessionPreview) {
     lines.push(cyan("Recent user prompts"))
 
     for (const prompt of session.prompts) {
-      lines.push(`- ${prompt}`)
+      lines.push(`- ${highlightTerms(prompt, query)}`)
     }
 
     lines.push("")
@@ -43,31 +112,32 @@ function renderPreview(session: SessionPreview) {
     lines.push(cyan("Recent assistant snippets"))
 
     for (const snippet of session.assistantSnippets) {
-      lines.push(`- ${snippet}`)
+      lines.push(`- ${highlightTerms(snippet, query)}`)
     }
   }
 
   return lines.join("\n")
 }
 
-function renderList(items: SessionPreview[], activeIndex: number) {
-  if (items.length === 0) return "No matches"
+function renderList(items: SessionPreview[], activeIndex: number, pageIndex: number, query: string) {
+  if (items.length === 0) return ["No matches"]
 
-  const pageStart = Math.max(0, activeIndex - Math.floor(PAGE_SIZE / 2))
+  const pageStart = pageIndex * PAGE_SIZE
   const page = items.slice(pageStart, pageStart + PAGE_SIZE)
 
-  return page
-    .map((session, index) => {
+  const lines = page.flatMap((session, index) => {
       const realIndex = pageStart + index
       const prefix = realIndex === activeIndex ? cyan(">") : " "
 
       return [
-        `${prefix} ${session.title}`,
-        dim(`  ${session.directory}`),
+        `${prefix} ${highlightTerms(session.title, query)}`,
+        dim(`  ${highlightTerms(session.directory, query)}`),
         dim(`  ${session.updatedAtLabel}`),
-      ].join("\n")
+        "",
+      ]
     })
-    .join("\n\n")
+
+  return lines
 }
 
 function clampIndex(index: number, length: number) {
@@ -91,23 +161,25 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
 
   let query = initialQuery
   let activeIndex = 0
+  let pageIndex = 0
   let filtered = searchSessions(sessions, query)
 
   const render = () => {
     filtered = searchSessions(sessions, query)
     activeIndex = clampIndex(activeIndex, filtered.length)
+    pageIndex = Math.floor(activeIndex / PAGE_SIZE)
 
     clearScreen()
     process.stdout.write(`${bold("OpenCode Sessions")}\n`)
-    process.stdout.write(`${dim("Type to filter. Enter opens. Esc or Ctrl+C cancels.")}\n\n`)
+    process.stdout.write(`${dim("Type to filter. Up/Down move. PgUp/PgDn jump. Enter opens. Esc or Ctrl+C cancels.")}\n\n`)
     process.stdout.write(`Query: ${query}\n`)
-    process.stdout.write(`${dim(`${filtered.length} matches`)}\n\n`)
+    process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))}`)}\n\n`)
 
     const selected = filtered[activeIndex]
-    const left = renderList(filtered, activeIndex)
-    const right = selected ? renderPreview(selected) : dim("No session selected")
+    const left = renderList(filtered, activeIndex, pageIndex, query)
+    const right = selected ? renderPreview(selected, query).split("\n") : [dim("No session selected")]
 
-    process.stdout.write(`${left}\n\n${right}\n`)
+    process.stdout.write(`${renderColumns(left, right)}\n`)
   }
 
   return await new Promise<SessionPreview>((resolve, reject) => {
@@ -152,6 +224,30 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
 
       if (key.name === "down") {
         activeIndex = clampIndex(activeIndex + 1, filtered.length)
+        render()
+        return
+      }
+
+      if (key.name === "pageup") {
+        activeIndex = clampIndex(activeIndex - PAGE_SIZE, filtered.length)
+        render()
+        return
+      }
+
+      if (key.name === "pagedown") {
+        activeIndex = clampIndex(activeIndex + PAGE_SIZE, filtered.length)
+        render()
+        return
+      }
+
+      if (key.name === "home") {
+        activeIndex = 0
+        render()
+        return
+      }
+
+      if (key.name === "end") {
+        activeIndex = clampIndex(filtered.length - 1, filtered.length)
         render()
         return
       }

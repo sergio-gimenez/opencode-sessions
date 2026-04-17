@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { collapseWhitespace } from "../src/format.js"
 import { buildSessionPreviews, searchSessions } from "../src/sessions.js"
 import type { PromptRow, SessionRow } from "../src/types.js"
 
@@ -60,5 +61,11 @@ describe("searchSessions", () => {
 
     expect(searchSessions(withoutAssistant, "wireguard peer")).toHaveLength(0)
     expect(searchSessions(withAssistant, "wireguard peer")).toHaveLength(1)
+  })
+})
+
+describe("format helpers", () => {
+  it("normalizes whitespace consistently for matching", () => {
+    expect(collapseWhitespace("mesh\n\n vpn\t gateway ")).toBe("mesh vpn gateway")
   })
 })
