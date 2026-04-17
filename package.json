@@ -1,0 +1,28 @@
+{
+  "name": "opencode-sessions",
+  "version": "1.0.0",
+  "description": "OpenCode session picker across all local projects",
+  "main": "dist/cli.js",
+  "bin": {
+    "ocsessions": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "print": "tsx src/cli.ts --print"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@inquirer/prompts": "^8.4.1",
+    "better-sqlite3": "^12.9.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
