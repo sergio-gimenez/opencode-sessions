@@ -5,6 +5,7 @@ export type CliOptions = {
   help: boolean
   query: string
   search: SessionSearchScope
+  freshFrom: string
 }
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -12,6 +13,7 @@ export function parseArgs(argv: string[]): CliOptions {
   let search: SessionSearchScope = "user"
   let print = false
   let help = false
+  let freshFrom = ""
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -36,7 +38,13 @@ export function parseArgs(argv: string[]): CliOptions {
       index += 1
       continue
     }
+
+    if (arg === "--fresh-from") {
+      freshFrom = argv[index + 1] ?? ""
+      index += 1
+      continue
+    }
   }
 
-  return { print, help, query, search }
+  return { print, help, query, search, freshFrom }
 }

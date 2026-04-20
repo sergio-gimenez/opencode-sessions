@@ -30,6 +30,12 @@ Include assistant text in search:
 npm run dev -- --assistant
 ```
 
+Recover a broken old session by starting a fresh one from its transcript:
+
+```bash
+ocs --fresh-from ses_255f1e37bffeD8Jg3CwTHMx2d1
+```
+
 Print recent sessions without opening the picker:
 
 ```bash
