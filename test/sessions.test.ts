@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { collapseWhitespace } from "../src/format.js"
+import { buildFreshPrompt } from "../src/fresh-from.js"
+import { parseArgs } from "../src/cli-options.js"
 import { buildSessionPreviews, searchSessions } from "../src/sessions.js"
 import type { PromptRow, SessionRow } from "../src/types.js"
 
@@ -67,5 +69,32 @@ describe("searchSessions", () => {
 describe("format helpers", () => {
   it("normalizes whitespace consistently for matching", () => {
     expect(collapseWhitespace("mesh\n\n vpn\t gateway ")).toBe("mesh vpn gateway")
+  })
+})
+
+describe("fresh-from recovery", () => {
+  it("builds a recovery prompt from recent turns", () => {
+    const prompt = buildFreshPrompt(
+      {
+        sessionId: "ses_1",
+        title: "Architecture discussion",
+        directory: "/tmp/project-a",
+        prompt: "",
+      },
+      [
+        { info: { role: "user" }, parts: [{ type: "text", text: "We need a CLI-first interface." }] },
+        { info: { role: "assistant" }, parts: [{ type: "text", text: "CLI-first is the right MVP." }] },
+      ],
+    )
+
+    expect(prompt).toContain("Original session: ses_1")
+    expect(prompt).toContain("CLI-first")
+    expect(prompt).toContain("Continue naturally from this context")
+  })
+})
+
+describe("cli args", () => {
+  it("parses the fresh-from session option", () => {
+    expect(parseArgs(["--fresh-from", "ses_123"]).freshFrom).toBe("ses_123")
   })
 })

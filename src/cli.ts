@@ -2,7 +2,8 @@
 
 import { parseArgs } from "./cli-options.js"
 import { printHelp, printSessions } from "./cli-output.js"
-import { openSession } from "./open.js"
+import { createFreshSessionSeed } from "./fresh-from.js"
+import { openFreshSession, openSession } from "./open.js"
 import { pickSession } from "./picker.js"
 import { getSessionPreviews } from "./sessions.js"
 
@@ -11,6 +12,13 @@ async function main() {
 
   if (args.help) {
     printHelp()
+    return
+  }
+
+  if (args.freshFrom) {
+    const recovered = await createFreshSessionSeed(args.freshFrom)
+    const exitCode = await openFreshSession(recovered.directory, recovered.prompt)
+    process.exitCode = exitCode
     return
   }
 
