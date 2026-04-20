@@ -57,9 +57,18 @@ function renderTranscript(messages: ExportedMessage[], role: "user" | "assistant
     .map((text) => `- ${truncate(text, 240)}`)
 }
 
+function getLastTextTurn(messages: ExportedMessage[], role: "user" | "assistant") {
+  return messages
+    .filter((message) => message.info?.role === role)
+    .flatMap((message) => getTextParts(message))
+    .at(-1)
+}
+
 export function buildFreshPrompt(session: FreshSessionSeed, messages: ExportedMessage[]) {
   const userTurns = renderTranscript(messages, "user", MAX_USER_TURNS)
   const assistantTurns = renderTranscript(messages, "assistant", MAX_ASSISTANT_TURNS)
+  const lastUserTurn = getLastTextTurn(messages, "user")
+  const lastAssistantTurn = getLastTextTurn(messages, "assistant")
 
   return [
     "Continue a prior OpenCode conversation in a new clean session.",
@@ -68,13 +77,26 @@ export function buildFreshPrompt(session: FreshSessionSeed, messages: ExportedMe
     `Original title: ${session.title}`,
     `Original directory: ${session.directory}`,
     "",
+    "Primary task:",
+    ...(lastUserTurn
+      ? [
+          "- Reply directly to the latest user message first.",
+          `- Latest user message: ${truncate(lastUserTurn, 320)}`,
+        ]
+      : ["- Continue the latest thread from the prior session."]),
+    ...(lastAssistantTurn
+      ? [`- Last assistant message before that: ${truncate(lastAssistantTurn, 320)}`]
+      : []),
+    "- Do not restart the conversation from scratch.",
+    "- Do not ask a new planning question unless it is truly necessary after answering the latest user message.",
+    "",
     "Recent user turns:",
     ...(userTurns.length > 0 ? userTurns : ["- No recent user turns found."]),
     "",
     "Recent assistant turns:",
     ...(assistantTurns.length > 0 ? assistantTurns : ["- No recent assistant turns found."]),
     "",
-    "Continue naturally from this context. If some context appears incomplete, say so briefly and continue with the most recent thread.",
+    "Continue naturally from this context. If some context appears incomplete, say so briefly and then continue with the most recent thread.",
   ].join("\n")
 }
 

@@ -89,7 +89,8 @@ describe("fresh-from recovery", () => {
 
     expect(prompt).toContain("Original session: ses_1")
     expect(prompt).toContain("CLI-first")
-    expect(prompt).toContain("Continue naturally from this context")
+    expect(prompt).toContain("Latest user message")
+    expect(prompt).toContain("Reply directly to the latest user message first")
   })
 })
 
