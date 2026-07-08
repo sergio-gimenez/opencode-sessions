@@ -4,13 +4,30 @@ import { getAllSessions } from "./aggregate.js"
 import { chooseTool } from "./chooser.js"
 import { parseArgs } from "./cli-options.js"
 import { printHelp, printSessions } from "./cli-output.js"
-<<<<<<< Updated upstream
-import { openSession } from "./open.js"
-=======
-import { createFreshSessionSeed } from "./fresh-from.js"
-import { openClaudeSession, openFreshSession, openSession } from "./open.js"
->>>>>>> Stashed changes
+import { loadConfig } from "./config.js"
+import { openClaudeFresh, openClaudeSession, openOpencodeFresh, openSession } from "./open.js"
 import { pickSession } from "./picker.js"
+import { buildSessionSeed } from "./seed.js"
+import type { SessionPreview, SessionSource } from "./types.js"
+
+async function openWith(
+  tool: SessionSource,
+  session: SessionPreview,
+  opts: { skipPermissions: boolean },
+) {
+  // Native tool: resume the real session by id.
+  if (tool === session.source) {
+    return tool === "claude"
+      ? openClaudeSession(session.id, session.directory, opts)
+      : openSession(session.id, session.directory, opts)
+  }
+
+  // Cross-tool: ids are not portable, so seed a fresh session with the transcript.
+  const seed = await buildSessionSeed(session)
+  return tool === "claude"
+    ? openClaudeFresh(seed.directory, seed.prompt, opts)
+    : openOpencodeFresh(seed.directory, seed.prompt, opts)
+}
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
@@ -20,18 +37,10 @@ async function main() {
     return
   }
 
-<<<<<<< Updated upstream
-  const sessions = getSessionPreviews({ search: args.search })
-=======
-  if (args.freshFrom) {
-    const recovered = await createFreshSessionSeed(args.freshFrom)
-    const exitCode = await openFreshSession(recovered.directory, recovered.prompt)
-    process.exitCode = exitCode
-    return
-  }
+  const config = loadConfig()
+  const skipPermissions = args.skipPermissions ?? config.skipPermissions
 
   const sessions = getAllSessions({ search: args.search })
->>>>>>> Stashed changes
 
   if (args.print) {
     printSessions(sessions.slice(0, 25))
@@ -41,12 +50,7 @@ async function main() {
   const session = await pickSession(sessions, args.query)
   const tool = await chooseTool(session)
 
-  const exitCode =
-    tool === "claude"
-      ? await openClaudeSession(session.id, session.directory)
-      : await openSession(session.id, session.directory)
-
-  process.exitCode = exitCode
+  process.exitCode = await openWith(tool, session, { skipPermissions })
 }
 
 main().catch((error: unknown) => {

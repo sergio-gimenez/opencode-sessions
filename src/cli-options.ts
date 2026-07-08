@@ -5,6 +5,8 @@ export type CliOptions = {
   help: boolean
   query: string
   search: SessionSearchScope
+  // undefined = defer to config file; true/false = explicit CLI override.
+  skipPermissions?: boolean
 }
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -12,6 +14,7 @@ export function parseArgs(argv: string[]): CliOptions {
   let search: SessionSearchScope = "user"
   let print = false
   let help = false
+  let skipPermissions: boolean | undefined
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -31,6 +34,16 @@ export function parseArgs(argv: string[]): CliOptions {
       continue
     }
 
+    if (arg === "--dangerous" || arg === "--skip-permissions" || arg === "--yolo") {
+      skipPermissions = true
+      continue
+    }
+
+    if (arg === "--safe" || arg === "--no-skip-permissions") {
+      skipPermissions = false
+      continue
+    }
+
     if (arg === "--query") {
       query = argv[index + 1] ?? ""
       index += 1
@@ -38,5 +51,5 @@ export function parseArgs(argv: string[]): CliOptions {
     }
   }
 
-  return { print, help, query, search }
+  return { print, help, query, search, skipPermissions }
 }

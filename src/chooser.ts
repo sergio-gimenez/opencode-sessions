@@ -47,6 +47,8 @@ export function chooseTool(session: SessionPreview): Promise<SessionSource> {
     )
     process.stdout.write(`${option("o", magenta("opencode"), native === "opencode")}\n`)
     process.stdout.write(`${option("c", blue("claude code"), native === "claude")}\n\n`)
+    process.stdout.write(dim(`  Native tool resumes this session; the other opens a fresh\n`))
+    process.stdout.write(dim(`  session seeded with its transcript (ids are not portable).\n`))
     process.stdout.write(dim(`  Enter opens with ${native}. Esc or Ctrl+C cancels.\n`))
   }
 
