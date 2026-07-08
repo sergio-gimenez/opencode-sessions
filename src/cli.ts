@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { getAllSessions } from "./aggregate.js"
-import { chooseTool } from "./chooser.js"
 import { parseArgs } from "./cli-options.js"
 import { printHelp, printSessions } from "./cli-output.js"
 import { loadConfig } from "./config.js"
@@ -47,8 +46,7 @@ async function main() {
     return
   }
 
-  const session = await pickSession(sessions, args.query)
-  const tool = await chooseTool(session)
+  const { session, tool } = await pickSession(sessions, args.query)
 
   process.exitCode = await openWith(tool, session, { skipPermissions })
 }

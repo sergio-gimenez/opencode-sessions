@@ -2,7 +2,13 @@ import os from "node:os"
 import readline from "node:readline"
 
 import { searchSessions } from "./sessions.js"
-import type { SessionPreview } from "./types.js"
+import type { SessionPreview, SessionSource } from "./types.js"
+
+export type PickResult = { session: SessionPreview; tool: SessionSource }
+
+function otherTool(source: SessionSource): SessionSource {
+  return source === "claude" ? "opencode" : "claude"
+}
 
 const HOME = os.homedir()
 
@@ -169,7 +175,10 @@ function clampIndex(index: number, length: number) {
   return index
 }
 
-export async function pickSession(sessions: SessionPreview[], initialQuery = "") {
+export async function pickSession(
+  sessions: SessionPreview[],
+  initialQuery = "",
+): Promise<PickResult> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -205,7 +214,11 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
 
     clearScreen()
     process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC]")} ${dim("claude")}\n`)
-    process.stdout.write(`${dim("Type to filter. ↑↓ move. PgUp/PgDn jump. Enter selects. Esc cancels.")}\n`)
+    const selectedNow = filtered[activeIndex]
+    const openHint = selectedNow
+      ? `Enter opens in ${selectedNow.source}. Tab opens in ${otherTool(selectedNow.source)} (fresh seed).`
+      : "Enter opens natively. Tab opens with the other tool."
+    process.stdout.write(`${dim(`Type to filter. ↑↓ move. PgUp/PgDn jump. ${openHint} Esc cancels.`)}\n`)
     process.stdout.write(`Query: ${query}\n`)
     process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${pageCount}`)}\n\n`)
 
@@ -218,7 +231,7 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
     process.stdout.write(`${renderColumns(left, right.slice(0, availableRows), leftWidth)}\n`)
   }
 
-  return await new Promise<SessionPreview>((resolve, reject) => {
+  return await new Promise<PickResult>((resolve, reject) => {
     const cleanup = () => {
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(false)
@@ -247,7 +260,15 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve(selected)
+        resolve({ session: selected, tool: selected.source })
+        return
+      }
+
+      if (key.name === "tab") {
+        const selected = filtered[activeIndex]
+        if (!selected) return
+        cleanup()
+        resolve({ session: selected, tool: otherTool(selected.source) })
         return
       }
 

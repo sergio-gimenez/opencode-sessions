@@ -7,8 +7,10 @@ import path from "node:path"
 import { collapseWhitespace, truncate } from "./format.js"
 import type { SessionPreview, SessionSource } from "./types.js"
 
-const MAX_USER_TURNS = 6
-const MAX_ASSISTANT_TURNS = 3
+// Full transcript, with guards so a huge session doesn't blow the prompt:
+// truncate each turn, then keep the most recent turns within a char budget.
+const MAX_TURN_CHARS = 4000
+const MAX_TRANSCRIPT_CHARS = 60000
 const JSONL_EXT = ".jsonl"
 
 export type Turn = { role: "user" | "assistant"; text: string }
@@ -26,18 +28,32 @@ function lastTurn(turns: Turn[], role: "user" | "assistant") {
   return turns.filter((turn) => turn.role === role).at(-1)?.text
 }
 
-function recentTurns(turns: Turn[], role: "user" | "assistant", limit: number) {
-  return turns
-    .filter((turn) => turn.role === role)
-    .slice(-limit)
-    .map((turn) => `- ${truncate(turn.text, 240)}`)
+function renderTranscript(turns: Turn[]) {
+  const rendered = turns.map(
+    (turn) => `${turn.role === "user" ? "USER" : "ASSISTANT"}: ${truncate(turn.text, MAX_TURN_CHARS)}`,
+  )
+
+  // Keep the most recent turns that fit the budget; drop oldest if over.
+  const kept: string[] = []
+  let total = 0
+  let dropped = false
+
+  for (let index = rendered.length - 1; index >= 0; index -= 1) {
+    const line = rendered[index]
+    if (kept.length > 0 && total + line.length > MAX_TRANSCRIPT_CHARS) {
+      dropped = true
+      break
+    }
+    kept.unshift(line)
+    total += line.length
+  }
+
+  if (dropped) kept.unshift("[... earlier turns omitted for length ...]")
+  return kept.length > 0 ? kept.join("\n\n") : "(no transcript found)"
 }
 
 export function buildContinuationPrompt(session: SessionPreview, turns: Turn[]) {
   const lastUser = lastTurn(turns, "user")
-  const lastAssistant = lastTurn(turns, "assistant")
-  const userTurns = recentTurns(turns, "user", MAX_USER_TURNS)
-  const assistantTurns = recentTurns(turns, "assistant", MAX_ASSISTANT_TURNS)
 
   return [
     `Continue a prior ${toolName(session.source)} conversation in a new clean session.`,
@@ -46,23 +62,15 @@ export function buildContinuationPrompt(session: SessionPreview, turns: Turn[]) 
     `Original title: ${session.title}`,
     `Original directory: ${session.directory}`,
     "",
-    "Primary task:",
-    ...(lastUser
-      ? [
-          "- Reply directly to the latest user message first.",
-          `- Latest user message: ${truncate(lastUser, 320)}`,
-        ]
-      : ["- Continue the latest thread from the prior session."]),
-    ...(lastAssistant ? [`- Last assistant message before that: ${truncate(lastAssistant, 320)}`] : []),
-    "- Do not restart the conversation from scratch.",
+    "You are resuming this conversation in a different tool. The full transcript",
+    "is below. Reply directly to the latest user message first; do not restart the",
+    "conversation from scratch. If some context looks incomplete, say so briefly and",
+    "then continue with the most recent thread.",
+    ...(lastUser ? ["", `Latest user message: ${truncate(lastUser, 320)}`] : []),
     "",
-    "Recent user turns:",
-    ...(userTurns.length > 0 ? userTurns : ["- No recent user turns found."]),
-    "",
-    "Recent assistant turns:",
-    ...(assistantTurns.length > 0 ? assistantTurns : ["- No recent assistant turns found."]),
-    "",
-    "Continue naturally from this context. If some context appears incomplete, say so briefly and then continue with the most recent thread.",
+    "=== TRANSCRIPT ===",
+    renderTranscript(turns),
+    "=== END TRANSCRIPT ===",
   ].join("\n")
 }
 
