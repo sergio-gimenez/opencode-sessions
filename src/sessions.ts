@@ -81,6 +81,7 @@ export function buildSessionPreviews(
     title: session.title,
     directory: session.directory,
     projectId: session.project_id,
+    source: "opencode",
     updatedAtMs: session.time_updated,
     updatedAtLabel: formatUpdatedAt(session.time_updated),
     prompts: userTexts.previewBySession.get(session.id) ?? [],

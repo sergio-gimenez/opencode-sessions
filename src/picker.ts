@@ -1,10 +1,10 @@
+import os from "node:os"
 import readline from "node:readline"
 
 import { searchSessions } from "./sessions.js"
 import type { SessionPreview } from "./types.js"
 
-const PAGE_SIZE = 10
-const LEFT_WIDTH = 52
+const HOME = os.homedir()
 
 function clearScreen() {
   process.stdout.write("\x1Bc")
@@ -24,6 +24,39 @@ function cyan(value: string) {
 
 function yellow(value: string) {
   return `\x1b[33m${value}\x1b[0m`
+}
+
+function magenta(value: string) {
+  return `\x1b[35m${value}\x1b[0m`
+}
+
+function blue(value: string) {
+  return `\x1b[34m${value}\x1b[0m`
+}
+
+function badge(session: SessionPreview) {
+  return session.source === "claude" ? blue("[CC]") : magenta("[OC]")
+}
+
+function termSize() {
+  return {
+    cols: process.stdout.columns || 100,
+    rows: process.stdout.rows || 30,
+  }
+}
+
+function shortenPath(value: string) {
+  return value.startsWith(HOME) ? `~${value.slice(HOME.length)}` : value
+}
+
+function truncatePlain(value: string, width: number) {
+  if (width <= 1) return ""
+  if (value.length <= width) return value
+  return `${value.slice(0, width - 1)}…`
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
 }
 
 function splitTerms(query: string) {
@@ -54,35 +87,12 @@ function padLine(value: string, width: number) {
   return `${value}${" ".repeat(width - plain.length)}`
 }
 
-function wrapText(value: string, width: number) {
-  if (width <= 0) return [value]
-
-  const words = value.split(" ")
-  const lines: string[] = []
-  let current = ""
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word
-
-    if (next.length > width && current) {
-      lines.push(current)
-      current = word
-      continue
-    }
-
-    current = next
-  }
-
-  if (current) lines.push(current)
-  return lines.length > 0 ? lines : [""]
-}
-
-function renderColumns(left: string[], right: string[]) {
+function renderColumns(left: string[], right: string[], leftWidth: number) {
   const total = Math.max(left.length, right.length)
   const lines: string[] = []
 
   for (let index = 0; index < total; index += 1) {
-    const leftLine = padLine(left[index] ?? "", LEFT_WIDTH)
+    const leftLine = padLine(left[index] ?? "", leftWidth)
     const rightLine = right[index] ?? ""
     lines.push(`${leftLine}  ${rightLine}`)
   }
@@ -90,54 +100,66 @@ function renderColumns(left: string[], right: string[]) {
   return lines.join("\n")
 }
 
-function renderPreview(session: SessionPreview, query: string) {
+function renderPreview(session: SessionPreview, query: string, width: number) {
+  // Every returned line's *plain* length must be <= width, prefixes included,
+  // or the terminal wraps it back to column 0 and smears the layout.
+  const put = (plain: string) => highlightTerms(truncatePlain(plain, width), query)
+
   const lines = [
-    bold(highlightTerms(session.title, query)),
-    dim(highlightTerms(session.directory, query)),
-    dim(`${session.updatedAtLabel}  ${session.id}`),
+    bold(put(session.title)),
+    dim(put(shortenPath(session.directory))),
+    dim(truncatePlain(`${session.updatedAtLabel}  ${session.id}`, width)),
     "",
   ]
 
   if (session.prompts.length > 0) {
     lines.push(cyan("Recent user prompts"))
-
     for (const prompt of session.prompts) {
-      lines.push(`- ${highlightTerms(prompt, query)}`)
+      lines.push(put(`- ${prompt}`))
     }
-
     lines.push("")
   }
 
   if (session.assistantSnippets.length > 0) {
     lines.push(cyan("Recent assistant snippets"))
-
     for (const snippet of session.assistantSnippets) {
-      lines.push(`- ${highlightTerms(snippet, query)}`)
+      lines.push(put(`- ${snippet}`))
     }
   }
 
-  return lines.join("\n")
+  return lines
 }
 
-function renderList(items: SessionPreview[], activeIndex: number, pageIndex: number, query: string) {
-  if (items.length === 0) return ["No matches"]
+function renderList(
+  items: SessionPreview[],
+  activeIndex: number,
+  pageStart: number,
+  pageSize: number,
+  query: string,
+  width: number,
+) {
+  if (items.length === 0) return [dim("No matches")]
 
-  const pageStart = pageIndex * PAGE_SIZE
-  const page = items.slice(pageStart, pageStart + PAGE_SIZE)
+  const page = items.slice(pageStart, pageStart + pageSize)
+  // marker(1) + space(1) + "[CC]"(4) + space(1) = 7 chars before the title.
+  const titleWidth = Math.max(4, width - 8)
+  const indentWidth = Math.max(4, width - 6)
 
-  const lines = page.flatMap((session, index) => {
-      const realIndex = pageStart + index
-      const prefix = realIndex === activeIndex ? cyan(">") : " "
+  return page.flatMap((session, index) => {
+    const realIndex = pageStart + index
+    const active = realIndex === activeIndex
+    const marker = active ? cyan(">") : " "
+    const title = truncatePlain(session.title, titleWidth)
+    const dir = truncatePlain(shortenPath(session.directory), indentWidth)
+    const date = truncatePlain(session.updatedAtLabel, indentWidth)
 
-      return [
-        `${prefix} ${highlightTerms(session.title, query)}`,
-        dim(`  ${highlightTerms(session.directory, query)}`),
-        dim(`  ${session.updatedAtLabel}`),
-        "",
-      ]
-    })
-
-  return lines
+    return [
+      `${marker} ${badge(session)} ${highlightTerms(title, query)}`,
+      dim(`     ${highlightTerms(dir, query)}`),
+      dim(`     ${date}`),
+      "",
+    ]
+  })
 }
 
 function clampIndex(index: number, length: number) {
@@ -161,25 +183,39 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
 
   let query = initialQuery
   let activeIndex = 0
-  let pageIndex = 0
   let filtered = searchSessions(sessions, query)
 
   const render = () => {
     filtered = searchSessions(sessions, query)
     activeIndex = clampIndex(activeIndex, filtered.length)
-    pageIndex = Math.floor(activeIndex / PAGE_SIZE)
+
+    const { cols, rows } = termSize()
+    // Layout: [left padded to leftWidth][2-space gap][right]. Keep the whole
+    // row <= cols-1 so no terminal wraps a line back to column 0.
+    const leftWidth = clamp(Math.round(cols * 0.42), 30, 64)
+    const rightWidth = Math.max(20, cols - leftWidth - 3)
+
+    const headerRows = 5
+    const linesPerItem = 4
+    const availableRows = Math.max(linesPerItem, rows - headerRows - 1)
+    const pageSize = Math.max(1, Math.floor(availableRows / linesPerItem))
+    const pageIndex = Math.floor(activeIndex / pageSize)
+    const pageStart = pageIndex * pageSize
+    const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
 
     clearScreen()
-    process.stdout.write(`${bold("OpenCode Sessions")}\n`)
-    process.stdout.write(`${dim("Type to filter. Up/Down move. PgUp/PgDn jump. Enter opens. Esc or Ctrl+C cancels.")}\n\n`)
+    process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC]")} ${dim("claude")}\n`)
+    process.stdout.write(`${dim("Type to filter. ↑↓ move. PgUp/PgDn jump. Enter selects. Esc cancels.")}\n`)
     process.stdout.write(`Query: ${query}\n`)
-    process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))}`)}\n\n`)
+    process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${pageCount}`)}\n\n`)
 
     const selected = filtered[activeIndex]
-    const left = renderList(filtered, activeIndex, pageIndex, query)
-    const right = selected ? renderPreview(selected, query).split("\n") : [dim("No session selected")]
+    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth)
+    const right = selected
+      ? renderPreview(selected, query, rightWidth)
+      : [dim("No session selected")]
 
-    process.stdout.write(`${renderColumns(left, right)}\n`)
+    process.stdout.write(`${renderColumns(left, right.slice(0, availableRows), leftWidth)}\n`)
   }
 
   return await new Promise<SessionPreview>((resolve, reject) => {
@@ -189,6 +225,7 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
       }
 
       process.stdin.removeListener("keypress", onKeypress)
+      process.stdout.removeListener("resize", render)
       rl.close()
       clearScreen()
     }
@@ -208,9 +245,7 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
 
       if (key.name === "return") {
         const selected = filtered[activeIndex]
-
         if (!selected) return
-
         cleanup()
         resolve(selected)
         return
@@ -229,13 +264,13 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
       }
 
       if (key.name === "pageup") {
-        activeIndex = clampIndex(activeIndex - PAGE_SIZE, filtered.length)
+        activeIndex = clampIndex(activeIndex - 10, filtered.length)
         render()
         return
       }
 
       if (key.name === "pagedown") {
-        activeIndex = clampIndex(activeIndex + PAGE_SIZE, filtered.length)
+        activeIndex = clampIndex(activeIndex + 10, filtered.length)
         render()
         return
       }
@@ -267,6 +302,7 @@ export async function pickSession(sessions: SessionPreview[], initialQuery = "")
     }
 
     process.stdin.on("keypress", onKeypress)
+    process.stdout.on("resize", render)
     render()
   })
 }

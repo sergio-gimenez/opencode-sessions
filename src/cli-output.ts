@@ -4,6 +4,9 @@ export function printHelp() {
   process.stdout.write([
     "opencode-sessions",
     "",
+    "Browse OpenCode and Claude Code sessions, then open the picked one",
+    "with either tool ([o] opencode / [c] claude code).",
+    "",
     "Usage:",
     "  ocs",
     "  ocs --print",
@@ -22,7 +25,8 @@ export function printHelp() {
 
 export function printSessions(sessions: SessionPreview[]) {
   for (const session of sessions) {
-    process.stdout.write(`${session.title}\n`)
+    const tag = session.source === "claude" ? "[CC]" : "[OC]"
+    process.stdout.write(`${tag} ${session.title}\n`)
     process.stdout.write(`  ${session.directory}\n`)
     process.stdout.write(`  ${session.updatedAtLabel}  ${session.id}\n`)
 

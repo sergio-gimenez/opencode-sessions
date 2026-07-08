@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 
+import { getAllSessions } from "./aggregate.js"
+import { chooseTool } from "./chooser.js"
 import { parseArgs } from "./cli-options.js"
 import { printHelp, printSessions } from "./cli-output.js"
+<<<<<<< Updated upstream
 import { openSession } from "./open.js"
+=======
+import { createFreshSessionSeed } from "./fresh-from.js"
+import { openClaudeSession, openFreshSession, openSession } from "./open.js"
+>>>>>>> Stashed changes
 import { pickSession } from "./picker.js"
-import { getSessionPreviews } from "./sessions.js"
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
@@ -14,7 +20,18 @@ async function main() {
     return
   }
 
+<<<<<<< Updated upstream
   const sessions = getSessionPreviews({ search: args.search })
+=======
+  if (args.freshFrom) {
+    const recovered = await createFreshSessionSeed(args.freshFrom)
+    const exitCode = await openFreshSession(recovered.directory, recovered.prompt)
+    process.exitCode = exitCode
+    return
+  }
+
+  const sessions = getAllSessions({ search: args.search })
+>>>>>>> Stashed changes
 
   if (args.print) {
     printSessions(sessions.slice(0, 25))
@@ -22,7 +39,13 @@ async function main() {
   }
 
   const session = await pickSession(sessions, args.query)
-  const exitCode = await openSession(session.id, session.directory)
+  const tool = await chooseTool(session)
+
+  const exitCode =
+    tool === "claude"
+      ? await openClaudeSession(session.id, session.directory)
+      : await openSession(session.id, session.directory)
+
   process.exitCode = exitCode
 }
 

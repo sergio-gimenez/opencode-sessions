@@ -17,6 +17,10 @@ export function formatUpdatedAt(timestamp: number) {
 }
 
 export function parseTextPart(value: string) {
-  const parsed = JSON.parse(value) as { text?: string }
-  return collapseWhitespace(parsed.text ?? "")
+  try {
+    const parsed = JSON.parse(value) as { text?: string }
+    return collapseWhitespace(parsed.text ?? "")
+  } catch {
+    return ""
+  }
 }

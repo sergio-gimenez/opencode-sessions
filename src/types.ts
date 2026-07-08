@@ -1,8 +1,11 @@
+export type SessionSource = "opencode" | "claude"
+
 export type SessionPreview = {
   id: string
   title: string
   directory: string
   projectId: string
+  source: SessionSource
   updatedAtMs: number
   updatedAtLabel: string
   prompts: string[]
