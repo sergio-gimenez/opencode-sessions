@@ -7,7 +7,7 @@ across all local projects, from a single picker.
 
 - Lists sessions from both the OpenCode SQLite database and every configured
   Claude Code account, merged and ordered by most recent update
-- `[OC]` / `[CC1]` / `[CC2]` badges mark each session's owning tool and account
+- `[OC]` / `[CC1]` / `[CC1→CC2]` badges show ownership and target account
 - Searches by title, directory, and all user prompts (optionally assistant text)
 - Responsive two-column picker that adapts to the terminal size
 - **Enter** resumes the session natively in its owning tool
@@ -104,7 +104,8 @@ ocs --claude-account cc2
 
 Inside the picker, `Ctrl+T` cycles the target. `Shift+Tab` opens the selected
 session in that account. `Enter` always resumes in the session's original tool
-and account.
+and account. Claude rows show the route when source and target differ: selecting
+CC2 changes a CC1 row from `[CC1]` to `[CC1→CC2]`.
 
 See [Using multiple Claude Code accounts](docs/multiple-claude-accounts.md) for
 complete Linux, macOS, and PowerShell setup, verification, usage, and

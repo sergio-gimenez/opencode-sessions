@@ -48,12 +48,20 @@ function claudeLabel(account?: ClaudeAccount) {
   return account?.name.toUpperCase() ?? "CC"
 }
 
-function badgeText(session: SessionPreview) {
-  return session.source === "claude" ? `[${claudeLabel(session.claudeAccount)}]` : "[OC]"
+function sameAccount(left?: ClaudeAccount, right?: ClaudeAccount) {
+  return (left?.configDir ?? "") === (right?.configDir ?? "")
 }
 
-function badge(session: SessionPreview) {
-  const text = badgeText(session)
+export function sessionBadgeText(session: SessionPreview, target?: ClaudeAccount) {
+  if (session.source !== "claude") return "[OC]"
+
+  const sourceLabel = claudeLabel(session.claudeAccount)
+  if (!target || sameAccount(session.claudeAccount, target)) return `[${sourceLabel}]`
+  return `[${sourceLabel}→${claudeLabel(target)}]`
+}
+
+function badge(session: SessionPreview, target?: ClaudeAccount) {
+  const text = sessionBadgeText(session, target)
   return session.source === "claude" ? blue(text) : magenta(text)
 }
 
@@ -159,6 +167,7 @@ function renderList(
   pageSize: number,
   query: string,
   width: number,
+  target?: ClaudeAccount,
 ) {
   if (items.length === 0) return [dim("No matches")]
 
@@ -169,13 +178,13 @@ function renderList(
     const realIndex = pageStart + index
     const active = realIndex === activeIndex
     const marker = active ? cyan(">") : " "
-    const titleWidth = Math.max(4, width - badgeText(session).length - 4)
+    const titleWidth = Math.max(4, width - sessionBadgeText(session, target).length - 4)
     const title = truncatePlain(session.title, titleWidth)
     const dir = truncatePlain(shortenPath(session.directory), indentWidth)
     const date = truncatePlain(session.updatedAtLabel, indentWidth)
 
     return [
-      `${marker} ${badge(session)} ${highlightTerms(title, query)}`,
+      `${marker} ${badge(session, target)} ${highlightTerms(title, query)}`,
       dim(`     ${highlightTerms(dir, query)}`),
       dim(`     ${date}`),
       "",
@@ -262,7 +271,7 @@ export async function pickSession(
     process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${pageCount}`)}\n\n`)
 
     const selected = filtered[activeIndex]
-    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth)
+    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth, target)
     const right = selected
       ? renderPreview(selected, query, rightWidth)
       : [dim("No session selected")]

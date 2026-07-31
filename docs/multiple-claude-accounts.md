@@ -151,6 +151,10 @@ Picker controls:
 | `Ctrl+T` | Cycle the displayed Claude target account |
 | `Shift+Tab` | Open or fork into the displayed Claude target account |
 
+Claude badges preview the selected route. With CC2 targeted, a CC1 session is
+shown as `[CC1→CC2]`; a session already owned by CC2 remains `[CC2]`. Cycling
+back to CC1 reverses cross-account routes to `[CC2→CC1]`.
+
 Set the initial target from the command line:
 
 ```bash
