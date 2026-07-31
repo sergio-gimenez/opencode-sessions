@@ -48,12 +48,35 @@ function claudeLabel(account?: ClaudeAccount) {
   return account?.name.toUpperCase() ?? "CC"
 }
 
-function badgeText(session: SessionPreview) {
-  return session.source === "claude" ? `[${claudeLabel(session.claudeAccount)}]` : "[OC]"
+function sameAccount(left?: ClaudeAccount, right?: ClaudeAccount) {
+  return (left?.configDir ?? "") === (right?.configDir ?? "")
 }
 
-function badge(session: SessionPreview) {
-  const text = badgeText(session)
+export function sessionBadgeText(session: SessionPreview, target?: ClaudeAccount) {
+  if (session.source !== "claude") return "[OC]"
+
+  const sourceLabel = claudeLabel(session.claudeAccount)
+  if (!target || sameAccount(session.claudeAccount, target)) return `[${sourceLabel}]`
+  return `[${sourceLabel}→${claudeLabel(target)}]`
+}
+
+export function enterDestination(
+  session: SessionPreview,
+  target?: ClaudeAccount,
+): PickResult {
+  if (session.source === "claude") {
+    return {
+      session,
+      tool: "claude",
+      claudeAccount: target ?? session.claudeAccount,
+    }
+  }
+
+  return { session, tool: "opencode" }
+}
+
+function badge(session: SessionPreview, target?: ClaudeAccount) {
+  const text = sessionBadgeText(session, target)
   return session.source === "claude" ? blue(text) : magenta(text)
 }
 
@@ -159,6 +182,7 @@ function renderList(
   pageSize: number,
   query: string,
   width: number,
+  target?: ClaudeAccount,
 ) {
   if (items.length === 0) return [dim("No matches")]
 
@@ -169,13 +193,13 @@ function renderList(
     const realIndex = pageStart + index
     const active = realIndex === activeIndex
     const marker = active ? cyan(">") : " "
-    const titleWidth = Math.max(4, width - badgeText(session).length - 4)
+    const titleWidth = Math.max(4, width - sessionBadgeText(session, target).length - 4)
     const title = truncatePlain(session.title, titleWidth)
     const dir = truncatePlain(shortenPath(session.directory), indentWidth)
     const date = truncatePlain(session.updatedAtLabel, indentWidth)
 
     return [
-      `${marker} ${badge(session)} ${highlightTerms(title, query)}`,
+      `${marker} ${badge(session, target)} ${highlightTerms(title, query)}`,
       dim(`     ${highlightTerms(dir, query)}`),
       dim(`     ${date}`),
       "",
@@ -244,25 +268,25 @@ export async function pickSession(
     const target = targetClaudeAccount()
     process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC*]")} ${dim("claude accounts")}\n`)
     const selectedNow = filtered[activeIndex]
-    const nativeName = selectedNow?.source === "claude"
-      ? claudeLabel(selectedNow.claudeAccount)
-      : selectedNow?.source
+    const enterName = selectedNow?.source === "claude"
+      ? target ? `Claude ${claudeLabel(target)}` : "Claude"
+      : "OpenCode"
     const otherName = selectedNow?.source === "opencode"
       ? target ? `Claude ${claudeLabel(target)}` : "Claude"
       : "OpenCode"
     const openHint = selectedNow
-      ? `Enter: ${nativeName}. Tab: ${otherName}.`
+      ? `Enter: ${enterName}. Tab: ${otherName}.`
       : "Enter opens natively. Tab opens with the other tool."
     process.stdout.write(`${dim(`Type to filter. ↑↓ move. PgUp/PgDn jump. ${openHint} Esc cancels.`)}\n`)
     const accountHint = target
-      ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Shift+Tab opens/forks there.`
+      ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Enter follows displayed route.`
       : "No Claude target configured."
     process.stdout.write(`${dim(accountHint)}\n`)
     process.stdout.write(`Query: ${query}\n`)
     process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${pageCount}`)}\n\n`)
 
     const selected = filtered[activeIndex]
-    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth)
+    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth, target)
     const right = selected
       ? renderPreview(selected, query, rightWidth)
       : [dim("No session selected")]
@@ -299,11 +323,7 @@ export async function pickSession(
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve({
-          session: selected,
-          tool: selected.source,
-          claudeAccount: selected.source === "claude" ? selected.claudeAccount : undefined,
-        })
+        resolve(enterDestination(selected, targetClaudeAccount()))
         return
       }
 
