@@ -2,9 +2,13 @@ import os from "node:os"
 import readline from "node:readline"
 
 import { searchSessions } from "./sessions.js"
-import type { SessionPreview, SessionSource } from "./types.js"
+import type { ClaudeAccount, SessionPreview, SessionSource } from "./types.js"
 
-export type PickResult = { session: SessionPreview; tool: SessionSource }
+export type PickResult = {
+  session: SessionPreview
+  tool: SessionSource
+  claudeAccount?: ClaudeAccount
+}
 
 function otherTool(source: SessionSource): SessionSource {
   return source === "claude" ? "opencode" : "claude"
@@ -40,8 +44,17 @@ function blue(value: string) {
   return `\x1b[34m${value}\x1b[0m`
 }
 
+function claudeLabel(account?: ClaudeAccount) {
+  return account?.name.toUpperCase() ?? "CC"
+}
+
+function badgeText(session: SessionPreview) {
+  return session.source === "claude" ? `[${claudeLabel(session.claudeAccount)}]` : "[OC]"
+}
+
 function badge(session: SessionPreview) {
-  return session.source === "claude" ? blue("[CC]") : magenta("[OC]")
+  const text = badgeText(session)
+  return session.source === "claude" ? blue(text) : magenta(text)
 }
 
 function termSize() {
@@ -114,7 +127,10 @@ function renderPreview(session: SessionPreview, query: string, width: number) {
   const lines = [
     bold(put(session.title)),
     dim(put(shortenPath(session.directory))),
-    dim(truncatePlain(`${session.updatedAtLabel}  ${session.id}`, width)),
+    dim(truncatePlain(
+      `${session.updatedAtLabel}  ${session.source === "claude" ? `${claudeLabel(session.claudeAccount)}  ` : ""}${session.id}`,
+      width,
+    )),
     "",
   ]
 
@@ -147,14 +163,13 @@ function renderList(
   if (items.length === 0) return [dim("No matches")]
 
   const page = items.slice(pageStart, pageStart + pageSize)
-  // marker(1) + space(1) + "[CC]"(4) + space(1) = 7 chars before the title.
-  const titleWidth = Math.max(4, width - 8)
   const indentWidth = Math.max(4, width - 6)
 
   return page.flatMap((session, index) => {
     const realIndex = pageStart + index
     const active = realIndex === activeIndex
     const marker = active ? cyan(">") : " "
+    const titleWidth = Math.max(4, width - badgeText(session).length - 4)
     const title = truncatePlain(session.title, titleWidth)
     const dir = truncatePlain(shortenPath(session.directory), indentWidth)
     const date = truncatePlain(session.updatedAtLabel, indentWidth)
@@ -178,6 +193,10 @@ function clampIndex(index: number, length: number) {
 export async function pickSession(
   sessions: SessionPreview[],
   initialQuery = "",
+  options?: {
+    claudeAccounts?: ClaudeAccount[]
+    initialClaudeAccount?: ClaudeAccount
+  },
 ): Promise<PickResult> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -193,6 +212,15 @@ export async function pickSession(
   let query = initialQuery
   let activeIndex = 0
   let filtered = searchSessions(sessions, query)
+  const claudeAccounts = options?.claudeAccounts ?? []
+  let claudeAccountIndex = Math.max(
+    0,
+    claudeAccounts.findIndex(
+      (account) => (account.configDir ?? "") === (options?.initialClaudeAccount?.configDir ?? ""),
+    ),
+  )
+
+  const targetClaudeAccount = () => claudeAccounts[claudeAccountIndex]
 
   const render = () => {
     filtered = searchSessions(sessions, query)
@@ -204,7 +232,7 @@ export async function pickSession(
     const leftWidth = clamp(Math.round(cols * 0.42), 30, 64)
     const rightWidth = Math.max(20, cols - leftWidth - 3)
 
-    const headerRows = 5
+    const headerRows = 6
     const linesPerItem = 4
     const availableRows = Math.max(linesPerItem, rows - headerRows - 1)
     const pageSize = Math.max(1, Math.floor(availableRows / linesPerItem))
@@ -213,12 +241,23 @@ export async function pickSession(
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
 
     clearScreen()
-    process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC]")} ${dim("claude")}\n`)
+    const target = targetClaudeAccount()
+    process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC*]")} ${dim("claude accounts")}\n`)
     const selectedNow = filtered[activeIndex]
+    const nativeName = selectedNow?.source === "claude"
+      ? claudeLabel(selectedNow.claudeAccount)
+      : selectedNow?.source
+    const otherName = selectedNow?.source === "opencode"
+      ? target ? `Claude ${claudeLabel(target)}` : "Claude"
+      : "OpenCode"
     const openHint = selectedNow
-      ? `Enter opens in ${selectedNow.source}. Tab opens in ${otherTool(selectedNow.source)} (fresh seed).`
+      ? `Enter: ${nativeName}. Tab: ${otherName}.`
       : "Enter opens natively. Tab opens with the other tool."
     process.stdout.write(`${dim(`Type to filter. ↑↓ move. PgUp/PgDn jump. ${openHint} Esc cancels.`)}\n`)
+    const accountHint = target
+      ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Shift+Tab opens/forks there.`
+      : "No Claude target configured."
+    process.stdout.write(`${dim(accountHint)}\n`)
     process.stdout.write(`Query: ${query}\n`)
     process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${pageCount}`)}\n\n`)
 
@@ -260,7 +299,20 @@ export async function pickSession(
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve({ session: selected, tool: selected.source })
+        resolve({
+          session: selected,
+          tool: selected.source,
+          claudeAccount: selected.source === "claude" ? selected.claudeAccount : undefined,
+        })
+        return
+      }
+
+      if ((key.name === "tab" && key.shift) || key.name === "backtab") {
+        const selected = filtered[activeIndex]
+        const target = targetClaudeAccount()
+        if (!selected || !target) return
+        cleanup()
+        resolve({ session: selected, tool: "claude", claudeAccount: target })
         return
       }
 
@@ -268,7 +320,18 @@ export async function pickSession(
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve({ session: selected, tool: otherTool(selected.source) })
+        const tool = otherTool(selected.source)
+        resolve({
+          session: selected,
+          tool,
+          claudeAccount: tool === "claude" ? targetClaudeAccount() : undefined,
+        })
+        return
+      }
+
+      if (key.ctrl && key.name === "t" && claudeAccounts.length > 0) {
+        claudeAccountIndex = (claudeAccountIndex + 1) % claudeAccounts.length
+        render()
         return
       }
 

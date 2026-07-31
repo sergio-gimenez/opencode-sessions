@@ -1,7 +1,11 @@
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { mergeSessions } from "../src/aggregate.js"
-import { parseClaudeSession } from "../src/claude.js"
+import { getClaudeSessions, parseClaudeSession } from "../src/claude.js"
 import type { SessionPreview } from "../src/types.js"
 
 function jsonl(lines: unknown[]) {
@@ -72,6 +76,27 @@ describe("parseClaudeSession", () => {
     ])
     const preview = parseClaudeSession(noTitle, { sessionId: "x", updatedAtMs: 1, scope: "user" })
     expect(preview?.title).toBe("First real question")
+  })
+})
+
+describe("getClaudeSessions", () => {
+  it("records the owning Claude account and projects path", () => {
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocs-claude-"))
+
+    try {
+      const projectDir = path.join(configDir, "projects", "project")
+      fs.mkdirSync(projectDir, { recursive: true })
+      fs.writeFileSync(path.join(projectDir, "owned.jsonl"), raw)
+
+      const account = { name: "cc2", configDir }
+      const sessions = getClaudeSessions({ account })
+
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0].claudeAccount).toEqual(account)
+      expect(sessions[0].claudeProjectsPath).toBe(path.join(configDir, "projects"))
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true })
+    }
   })
 })
 

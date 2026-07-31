@@ -1,13 +1,27 @@
 import { spawn } from "node:child_process"
 
-export type OpenOptions = { skipPermissions?: boolean }
+import type { ClaudeAccount } from "./types.js"
 
-function run(command: string, args: string[], directory: string) {
+export type OpenOptions = { skipPermissions?: boolean }
+export type ClaudeOpenOptions = OpenOptions & { account?: ClaudeAccount }
+
+function run(command: string, args: string[], directory: string, env?: NodeJS.ProcessEnv) {
   return new Promise<number>((resolve, reject) => {
-    const child = spawn(command, args, { cwd: directory, stdio: "inherit" })
+    const child = spawn(command, args, {
+      cwd: directory,
+      stdio: "inherit",
+      env: env ?? process.env,
+    })
     child.on("error", reject)
     child.on("exit", (code) => resolve(code ?? 0))
   })
+}
+
+function claudeEnvironment(account?: ClaudeAccount) {
+  const env = { ...process.env }
+  if (account?.configDir) env.CLAUDE_CONFIG_DIR = account.configDir
+  else delete env.CLAUDE_CONFIG_DIR
+  return env
 }
 
 // Native resume: the session lives in this tool's own store.
@@ -18,10 +32,15 @@ export function openSession(sessionId: string, directory: string, opts?: OpenOpt
   return run("opencode", args, directory)
 }
 
-export function openClaudeSession(sessionId: string, directory: string, opts?: OpenOptions) {
+export function openClaudeSession(sessionId: string, directory: string, opts?: ClaudeOpenOptions) {
   const args = ["--resume", sessionId]
   if (opts?.skipPermissions) args.push("--dangerously-skip-permissions")
-  return run("claude", args, directory)
+  return run(
+    "claude",
+    args,
+    directory,
+    claudeEnvironment(opts?.account),
+  )
 }
 
 // Cross-tool: session IDs are not portable between OpenCode and Claude Code,
@@ -34,9 +53,14 @@ export function openOpencodeFresh(directory: string, prompt: string, opts?: Open
   return run("opencode", args, directory)
 }
 
-export function openClaudeFresh(directory: string, prompt: string, opts?: OpenOptions) {
+export function openClaudeFresh(directory: string, prompt: string, opts?: ClaudeOpenOptions) {
   const args: string[] = []
   if (opts?.skipPermissions) args.push("--dangerously-skip-permissions")
   args.push(prompt)
-  return run("claude", args, directory)
+  return run(
+    "claude",
+    args,
+    directory,
+    claudeEnvironment(opts?.account),
+  )
 }

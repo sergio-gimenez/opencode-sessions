@@ -62,7 +62,7 @@ export function buildContinuationPrompt(session: SessionPreview, turns: Turn[]) 
     `Original title: ${session.title}`,
     `Original directory: ${session.directory}`,
     "",
-    "You are resuming this conversation in a different tool. The full transcript",
+    "You are resuming this conversation in a fresh session. The full transcript",
     "is below. Reply directly to the latest user message first; do not restart the",
     "conversation from scratch. If some context looks incomplete, say so briefly and",
     "then continue with the most recent thread.",
@@ -149,9 +149,12 @@ function claudeText(content: unknown): string {
   return ""
 }
 
-function findClaudeFile(sessionId: string): string | null {
+function findClaudeFile(session: SessionPreview): string | null {
   const root =
-    process.env.CLAUDE_PROJECTS_PATH ?? path.join(os.homedir(), ".claude", "projects")
+    session.claudeProjectsPath ??
+    (session.claudeAccount?.configDir
+      ? path.join(session.claudeAccount.configDir, "projects")
+      : process.env.CLAUDE_PROJECTS_PATH ?? path.join(os.homedir(), ".claude", "projects"))
 
   let projectDirs: string[]
   try {
@@ -161,16 +164,16 @@ function findClaudeFile(sessionId: string): string | null {
   }
 
   for (const projectDir of projectDirs) {
-    const candidate = path.join(root, projectDir, `${sessionId}${JSONL_EXT}`)
+    const candidate = path.join(root, projectDir, `${session.id}${JSONL_EXT}`)
     if (fs.existsSync(candidate)) return candidate
   }
 
   return null
 }
 
-function claudeTranscript(sessionId: string): { directory: string; turns: Turn[] } {
-  const filePath = findClaudeFile(sessionId)
-  if (!filePath) throw new Error(`Could not find Claude session ${sessionId}.`)
+function claudeTranscript(session: SessionPreview): { directory: string; turns: Turn[] } {
+  const filePath = findClaudeFile(session)
+  if (!filePath) throw new Error(`Could not find Claude session ${session.id}.`)
 
   const raw = fs.readFileSync(filePath, "utf8")
   let directory = ""
@@ -213,7 +216,7 @@ export async function buildSessionSeed(session: SessionPreview): Promise<Session
   const { directory, turns } =
     session.source === "opencode"
       ? await opencodeTranscript(session.id)
-      : claudeTranscript(session.id)
+      : claudeTranscript(session)
 
   return {
     directory,

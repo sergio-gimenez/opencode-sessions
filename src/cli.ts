@@ -7,24 +7,34 @@ import { loadConfig } from "./config.js"
 import { openClaudeFresh, openClaudeSession, openOpencodeFresh, openSession } from "./open.js"
 import { pickSession } from "./picker.js"
 import { buildSessionSeed } from "./seed.js"
-import type { SessionPreview, SessionSource } from "./types.js"
+import type { ClaudeAccount, SessionPreview, SessionSource } from "./types.js"
+
+function sameAccount(left?: ClaudeAccount, right?: ClaudeAccount) {
+  return (left?.configDir ?? "") === (right?.configDir ?? "")
+}
 
 async function openWith(
   tool: SessionSource,
   session: SessionPreview,
-  opts: { skipPermissions: boolean },
+  opts: { skipPermissions: boolean; claudeAccount?: ClaudeAccount },
 ) {
-  // Native tool: resume the real session by id.
-  if (tool === session.source) {
+  // Native tool and account: resume the real session by id.
+  if (
+    tool === session.source &&
+    (tool !== "claude" || sameAccount(session.claudeAccount, opts.claudeAccount))
+  ) {
     return tool === "claude"
-      ? openClaudeSession(session.id, session.directory, opts)
+      ? openClaudeSession(session.id, session.directory, {
+          ...opts,
+          account: opts.claudeAccount ?? session.claudeAccount,
+        })
       : openSession(session.id, session.directory, opts)
   }
 
-  // Cross-tool: ids are not portable, so seed a fresh session with the transcript.
+  // Cross-tool and cross-account ids are not portable; seed a fresh session.
   const seed = await buildSessionSeed(session)
   return tool === "claude"
-    ? openClaudeFresh(seed.directory, seed.prompt, opts)
+    ? openClaudeFresh(seed.directory, seed.prompt, { ...opts, account: opts.claudeAccount })
     : openOpencodeFresh(seed.directory, seed.prompt, opts)
 }
 
@@ -38,17 +48,31 @@ async function main() {
 
   const config = loadConfig()
   const skipPermissions = args.skipPermissions ?? config.skipPermissions
+  const targetName = args.claudeAccount ?? config.defaultClaudeAccount
+  const claudeAccount = config.claudeAccounts.find((account) => account.name === targetName)
 
-  const sessions = getAllSessions({ search: args.search })
+  if (!claudeAccount) {
+    throw new Error(
+      `Unknown Claude account "${targetName}". Configured: ${config.claudeAccounts.map((account) => account.name).join(", ")}.`,
+    )
+  }
+
+  const sessions = getAllSessions({ search: args.search, claudeAccounts: config.claudeAccounts })
 
   if (args.print) {
     printSessions(sessions.slice(0, 25))
     return
   }
 
-  const { session, tool } = await pickSession(sessions, args.query)
+  const picked = await pickSession(sessions, args.query, {
+    claudeAccounts: config.claudeAccounts,
+    initialClaudeAccount: claudeAccount,
+  })
 
-  process.exitCode = await openWith(tool, session, { skipPermissions })
+  process.exitCode = await openWith(picked.tool, picked.session, {
+    skipPermissions,
+    claudeAccount: picked.claudeAccount,
+  })
 }
 
 main().catch((error: unknown) => {
