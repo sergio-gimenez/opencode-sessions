@@ -3,7 +3,7 @@ import os from "node:os"
 import path from "node:path"
 
 import { collapseWhitespace, formatUpdatedAt, truncate } from "./format.js"
-import type { SessionPreview, SessionSearchScope } from "./types.js"
+import type { ClaudeAccount, SessionPreview, SessionSearchScope } from "./types.js"
 
 const PROMPT_LIMIT = 3
 const JSONL_EXT = ".jsonl"
@@ -61,7 +61,13 @@ function isNoise(text: string) {
 
 export function parseClaudeSession(
   raw: string,
-  meta: { sessionId: string; updatedAtMs: number; scope: SessionSearchScope },
+  meta: {
+    sessionId: string
+    updatedAtMs: number
+    scope: SessionSearchScope
+    account?: ClaudeAccount
+    projectsPath?: string
+  },
 ): SessionPreview | null {
   let title = ""
   let directory = ""
@@ -113,9 +119,12 @@ export function parseClaudeSession(
     updatedAtLabel: formatUpdatedAt(meta.updatedAtMs),
     prompts: userTexts.slice(-PROMPT_LIMIT).map((text) => truncate(text)),
     assistantSnippets: assistantTexts.slice(-PROMPT_LIMIT).map((text) => truncate(text)),
+    claudeAccount: meta.account,
+    claudeProjectsPath: meta.projectsPath,
     searchText: [
       title,
       directory,
+      meta.account?.name ?? "",
       ...userTexts,
       ...(meta.scope === "all" ? assistantTexts : []),
     ].join("\n"),
@@ -125,8 +134,14 @@ export function parseClaudeSession(
 export function getClaudeSessions(options?: {
   projectsPath?: string
   search?: SessionSearchScope
+  account?: ClaudeAccount
 }): SessionPreview[] {
-  const root = resolveProjectsPath(options?.projectsPath)
+  const root = resolveProjectsPath(
+    options?.projectsPath ??
+      (options?.account?.configDir
+        ? path.join(options.account.configDir, "projects")
+        : undefined),
+  )
   const scope = options?.search ?? "user"
 
   let projectDirs: string[]
@@ -161,6 +176,8 @@ export function getClaudeSessions(options?: {
           sessionId,
           updatedAtMs: stat.mtimeMs,
           scope,
+          account: options?.account,
+          projectsPath: root,
         })
         if (preview) previews.push(preview)
       } catch {

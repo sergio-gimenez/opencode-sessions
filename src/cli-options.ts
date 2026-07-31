@@ -7,6 +7,7 @@ export type CliOptions = {
   search: SessionSearchScope
   // undefined = defer to config file; true/false = explicit CLI override.
   skipPermissions?: boolean
+  claudeAccount?: string
 }
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -15,6 +16,7 @@ export function parseArgs(argv: string[]): CliOptions {
   let print = false
   let help = false
   let skipPermissions: boolean | undefined
+  let claudeAccount: string | undefined
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -49,7 +51,13 @@ export function parseArgs(argv: string[]): CliOptions {
       index += 1
       continue
     }
+
+    if (arg === "--claude-account") {
+      claudeAccount = argv[index + 1]?.trim().toLowerCase()
+      index += 1
+      continue
+    }
   }
 
-  return { print, help, query, search, skipPermissions }
+  return { print, help, query, search, skipPermissions, claudeAccount }
 }

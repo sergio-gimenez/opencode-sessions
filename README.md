@@ -5,13 +5,15 @@ across all local projects, from a single picker.
 
 ## Features
 
-- Lists sessions from both the OpenCode SQLite database and the Claude Code
-  JSONL store (`~/.claude/projects`), merged and ordered by most recent update
-- `[OC]` / `[CC]` badges mark each session's owning tool
+- Lists sessions from both the OpenCode SQLite database and every configured
+  Claude Code account, merged and ordered by most recent update
+- `[OC]` / `[CC1]` / `[CC2]` badges mark each session's owning tool and account
 - Searches by title, directory, and all user prompts (optionally assistant text)
 - Responsive two-column picker that adapts to the terminal size
 - **Enter** resumes the session natively in its owning tool
 - **Tab** opens it in the *other* tool as a fresh, transcript-seeded session
+- **Ctrl+T** cycles the target Claude account
+- **Shift+Tab** opens or forks into the displayed target Claude account
 - Optional permission bypass (`--dangerous`) with a config-file default
 
 ## Picking a session
@@ -20,11 +22,15 @@ across all local projects, from a single picker.
 - `Tab` → open in the other tool. Ids are **not** portable between OpenCode and
   Claude Code, so this forks a **new** session in the target tool, seeded with
   the full transcript of the picked one.
+- `Ctrl+T` → cycle the target Claude account shown above the query.
+- `Shift+Tab` → open in the target Claude account. This resumes when the
+  selected session already belongs to that account; otherwise it creates a
+  transcript-seeded fork.
 
 ### Migration is a fork, not a move — drive it deliberately
 
-Cross-tool open does **not** migrate a session; it creates a new session in the
-other tool and pastes the transcript in as context. Consequences:
+Cross-tool and cross-account opens do **not** migrate a session; they create a
+new session and paste the transcript in as context. Consequences:
 
 - The original session still exists in its own tool, untouched.
 - Ping-ponging (CC → OC → CC …) leaves a **chain of partial copies**, and each
@@ -54,6 +60,55 @@ Set the default in `~/.config/ocs/config.json`:
 ```
 
 The CLI flag overrides the config per run.
+
+## Multiple Claude accounts
+
+Use Claude Code's normal home for the first account and an isolated
+`CLAUDE_CONFIG_DIR` for each additional account. Example shell functions:
+
+```bash
+cc1() { command claude "$@"; }
+cc2() { CLAUDE_CONFIG_DIR="$HOME/.claude-cc2" command claude "$@"; }
+```
+
+Authenticate each account once:
+
+```bash
+cc1 auth login
+cc2 auth login
+```
+
+Then configure `ocs` in `~/.config/ocs/config.json`:
+
+```json
+{
+  "skipPermissions": false,
+  "claudeAccounts": [
+    { "name": "cc1" },
+    { "name": "cc2", "configDir": "~/.claude-cc2" }
+  ],
+  "defaultClaudeAccount": "cc1"
+}
+```
+
+`ocs` scans each account's `projects` directory and preserves account ownership
+when resuming. A Claude session opened in another Claude account becomes a new,
+transcript-seeded fork; the original account's session stays untouched.
+Omit `configDir` for Claude Code's normal default account.
+
+Choose the initial target from the command line when useful:
+
+```bash
+ocs --claude-account cc2
+```
+
+Inside the picker, `Ctrl+T` cycles the target. `Shift+Tab` opens the selected
+session in that account. `Enter` always resumes in the session's original tool
+and account.
+
+See [Using multiple Claude Code accounts](docs/multiple-claude-accounts.md) for
+complete Linux, macOS, and PowerShell setup, verification, usage, and
+troubleshooting.
 
 ## Usage
 

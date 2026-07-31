@@ -1,6 +1,6 @@
 import { getClaudeSessions } from "./claude.js"
 import { getSessionPreviews } from "./sessions.js"
-import type { SessionPreview, SessionSearchScope } from "./types.js"
+import type { ClaudeAccount, SessionPreview, SessionSearchScope } from "./types.js"
 
 export function mergeSessions(...groups: SessionPreview[][]): SessionPreview[] {
   return groups.flat().sort((a, b) => b.updatedAtMs - a.updatedAtMs)
@@ -9,6 +9,7 @@ export function mergeSessions(...groups: SessionPreview[][]): SessionPreview[] {
 export function getAllSessions(options?: {
   search?: SessionSearchScope
   limit?: number
+  claudeAccounts?: ClaudeAccount[]
 }): SessionPreview[] {
   const scope = options?.search ?? "user"
 
@@ -21,7 +22,9 @@ export function getAllSessions(options?: {
 
   let claude: SessionPreview[] = []
   try {
-    claude = getClaudeSessions({ search: scope })
+    claude = options?.claudeAccounts
+      ? options.claudeAccounts.flatMap((account) => getClaudeSessions({ search: scope, account }))
+      : getClaudeSessions({ search: scope })
   } catch {
     // Claude projects dir missing — keep going with OpenCode sessions only.
   }

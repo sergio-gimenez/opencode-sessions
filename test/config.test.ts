@@ -32,6 +32,10 @@ describe("skip-permissions flag", () => {
   it("forces off via --safe", () => {
     expect(parseArgs(["--safe"]).skipPermissions).toBe(false)
   })
+
+  it("selects an initial Claude account", () => {
+    expect(parseArgs(["--claude-account", "CC2"]).claudeAccount).toBe("cc2")
+  })
 })
 
 describe("parseConfig", () => {
@@ -41,6 +45,22 @@ describe("parseConfig", () => {
 
   it("defaults skipPermissions to false", () => {
     expect(parseConfig("{}").skipPermissions).toBe(false)
+  })
+
+  it("reads Claude accounts and validates the default", () => {
+    const config = parseConfig(JSON.stringify({
+      claudeAccounts: [
+        { name: "CC1" },
+        { name: "cc2", configDir: "/tmp/cc2" },
+      ],
+      defaultClaudeAccount: "CC2",
+    }))
+
+    expect(config.claudeAccounts).toEqual([
+      { name: "cc1" },
+      { name: "cc2", configDir: "/tmp/cc2" },
+    ])
+    expect(config.defaultClaudeAccount).toBe("cc2")
   })
 })
 

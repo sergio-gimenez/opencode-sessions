@@ -1,5 +1,11 @@
 export type SessionSource = "opencode" | "claude"
 
+export type ClaudeAccount = {
+  name: string
+  // Omit for Claude Code's default ~/.claude + ~/.claude.json home.
+  configDir?: string
+}
+
 export type SessionPreview = {
   id: string
   title: string
@@ -11,6 +17,8 @@ export type SessionPreview = {
   prompts: string[]
   assistantSnippets: string[]
   searchText: string
+  claudeAccount?: ClaudeAccount
+  claudeProjectsPath?: string
 }
 
 export type SessionRow = {
