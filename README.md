@@ -10,15 +10,16 @@ across all local projects, from a single picker.
 - `[OC]` / `[CC1]` / `[CC1→CC2]` badges show ownership and target account
 - Searches by title, directory, and all user prompts (optionally assistant text)
 - Responsive two-column picker that adapts to the terminal size
-- **Enter** resumes the session natively in its owning tool
+- **Enter** follows the displayed Claude account route (OpenCode stays native)
 - **Tab** opens it in the *other* tool as a fresh, transcript-seeded session
 - **Ctrl+T** cycles the target Claude account
-- **Shift+Tab** opens or forks into the displayed target Claude account
+- **Shift+Tab** also opens or forks into the displayed target Claude account
 - Optional permission bypass (`--dangerous`) with a config-file default
 
 ## Picking a session
 
-- `Enter` → resume in the native tool (`opencode --session` / `claude --resume`).
+- `Enter` → follow the displayed route. `[CC1]` resumes CC1; `[CC1→CC2]`
+  creates a transcript-seeded CC2 fork. OpenCode sessions resume natively.
 - `Tab` → open in the other tool. Ids are **not** portable between OpenCode and
   Claude Code, so this forks a **new** session in the target tool, seeded with
   the full transcript of the picked one.
@@ -102,10 +103,10 @@ Choose the initial target from the command line when useful:
 ocs --claude-account cc2
 ```
 
-Inside the picker, `Ctrl+T` cycles the target. `Shift+Tab` opens the selected
-session in that account. `Enter` always resumes in the session's original tool
-and account. Claude rows show the route when source and target differ: selecting
-CC2 changes a CC1 row from `[CC1]` to `[CC1→CC2]`.
+Inside the picker, `Ctrl+T` cycles the target. `Enter` follows the displayed
+route; `Shift+Tab` is an equivalent explicit target shortcut. Claude rows show
+the route when source and target differ: selecting CC2 changes a CC1 row from
+`[CC1]` to `[CC1→CC2]`.
 
 See [Using multiple Claude Code accounts](docs/multiple-claude-accounts.md) for
 complete Linux, macOS, and PowerShell setup, verification, usage, and

@@ -146,10 +146,10 @@ Picker controls:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | Resume in the session's original tool and Claude account |
+| `Enter` | Follow the displayed Claude route; resume OpenCode natively |
 | `Tab` | Open in the other tool as a transcript-seeded session |
 | `Ctrl+T` | Cycle the displayed Claude target account |
-| `Shift+Tab` | Open or fork into the displayed Claude target account |
+| `Shift+Tab` | Also open or fork into the displayed Claude target account |
 
 Claude badges preview the selected route. With CC2 targeted, a CC1 session is
 shown as `[CC1→CC2]`; a session already owned by CC2 remains `[CC2]`. Cycling
@@ -166,7 +166,7 @@ ocs --claude-account cc2
 1. Run `ocs --claude-account cc2`.
 2. Select the old `[CC1]` session.
 3. Confirm the picker says `Claude target: CC2`.
-4. Press `Shift+Tab`.
+4. Press `Enter` (or `Shift+Tab`).
 
 `ocs` reads the CC1 transcript and starts a fresh CC2 session with that context.
 The original CC1 session remains unchanged. Once Claude Code persists the new
@@ -210,7 +210,7 @@ accounts.
 ### No CC2 sessions appear
 
 An authenticated account has no session files until it starts a conversation.
-Run `cc2` once or fork a session into CC2 with `Shift+Tab`.
+Run `cc2` once or fork a session into CC2 with `Enter` on a `[CC1→CC2]` row.
 
 ### The wrong subscription opens
 

@@ -60,6 +60,21 @@ export function sessionBadgeText(session: SessionPreview, target?: ClaudeAccount
   return `[${sourceLabel}→${claudeLabel(target)}]`
 }
 
+export function enterDestination(
+  session: SessionPreview,
+  target?: ClaudeAccount,
+): PickResult {
+  if (session.source === "claude") {
+    return {
+      session,
+      tool: "claude",
+      claudeAccount: target ?? session.claudeAccount,
+    }
+  }
+
+  return { session, tool: "opencode" }
+}
+
 function badge(session: SessionPreview, target?: ClaudeAccount) {
   const text = sessionBadgeText(session, target)
   return session.source === "claude" ? blue(text) : magenta(text)
@@ -253,18 +268,18 @@ export async function pickSession(
     const target = targetClaudeAccount()
     process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC*]")} ${dim("claude accounts")}\n`)
     const selectedNow = filtered[activeIndex]
-    const nativeName = selectedNow?.source === "claude"
-      ? claudeLabel(selectedNow.claudeAccount)
-      : selectedNow?.source
+    const enterName = selectedNow?.source === "claude"
+      ? target ? `Claude ${claudeLabel(target)}` : "Claude"
+      : "OpenCode"
     const otherName = selectedNow?.source === "opencode"
       ? target ? `Claude ${claudeLabel(target)}` : "Claude"
       : "OpenCode"
     const openHint = selectedNow
-      ? `Enter: ${nativeName}. Tab: ${otherName}.`
+      ? `Enter: ${enterName}. Tab: ${otherName}.`
       : "Enter opens natively. Tab opens with the other tool."
     process.stdout.write(`${dim(`Type to filter. ↑↓ move. PgUp/PgDn jump. ${openHint} Esc cancels.`)}\n`)
     const accountHint = target
-      ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Shift+Tab opens/forks there.`
+      ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Enter follows displayed route.`
       : "No Claude target configured."
     process.stdout.write(`${dim(accountHint)}\n`)
     process.stdout.write(`Query: ${query}\n`)
@@ -308,11 +323,7 @@ export async function pickSession(
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve({
-          session: selected,
-          tool: selected.source,
-          claudeAccount: selected.source === "claude" ? selected.claudeAccount : undefined,
-        })
+        resolve(enterDestination(selected, targetClaudeAccount()))
         return
       }
 

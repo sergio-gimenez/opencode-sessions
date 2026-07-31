@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { sessionBadgeText } from "../src/picker.js"
+import { enterDestination, sessionBadgeText } from "../src/picker.js"
 import type { ClaudeAccount, SessionPreview } from "../src/types.js"
 
 const cc1: ClaudeAccount = { name: "cc1" }
@@ -35,5 +35,20 @@ describe("Claude account route badge", () => {
 
   it("keeps OpenCode badges unchanged", () => {
     expect(sessionBadgeText({ ...session, source: "opencode" }, cc2)).toBe("[OC]")
+  })
+})
+
+describe("Enter destination", () => {
+  it("opens a Claude session in the displayed target account", () => {
+    expect(enterDestination(session, cc2)).toEqual({
+      session,
+      tool: "claude",
+      claudeAccount: cc2,
+    })
+  })
+
+  it("keeps OpenCode sessions native", () => {
+    const opencode = { ...session, source: "opencode" as const }
+    expect(enterDestination(opencode, cc2)).toEqual({ session: opencode, tool: "opencode" })
   })
 })
