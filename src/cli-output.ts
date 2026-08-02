@@ -1,3 +1,4 @@
+import { shortenHome } from "./format.js"
 import type { SessionPreview } from "./types.js"
 
 export function printHelp() {
@@ -25,8 +26,23 @@ export function printHelp() {
     "  --claude-account NAME set the initial Claude target account",
     "  -h, --help            show help",
     "",
+    "Keys in the picker:",
+    "  type                  filter by title, directory and your prompts",
+    "  up/down, PgUp/PgDn    move the selection",
+    "  Enter                 follow the route shown in the badge",
+    "  Tab                   open in the other tool, as a seeded fork",
+    "  Ctrl+T                cycle the target Claude account",
+    "  Shift+Tab             open into the target Claude account",
+    "  Esc                   cancel",
+    "",
     "Config: ~/.config/ocs/config.json",
     "  Sets permission and Claude account defaults; CLI flags override per run.",
+    "",
+    "Environment:",
+    "  OCS_DRY_RUN=1         print what would be launched instead of launching it",
+    "  OCS_CONFIG_PATH       override the config file location",
+    "  OPENCODE_DB_PATH      override the OpenCode database location",
+    "  CLAUDE_PROJECTS_PATH  override the default Claude projects directory",
     "",
   ].join("\n"))
 }
@@ -37,7 +53,7 @@ export function printSessions(sessions: SessionPreview[]) {
       ? `[${session.claudeAccount?.name.toUpperCase() ?? "CC"}]`
       : "[OC]"
     process.stdout.write(`${tag} ${session.title}\n`)
-    process.stdout.write(`  ${session.directory}\n`)
+    process.stdout.write(`  ${shortenHome(session.directory)}\n`)
     process.stdout.write(`  ${session.updatedAtLabel}  ${session.id}\n`)
 
     for (const prompt of session.prompts) {

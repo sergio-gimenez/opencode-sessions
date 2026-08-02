@@ -1,4 +1,11 @@
+import os from "node:os"
+
 const TEXT_LIMIT = 140
+
+export function shortenHome(value: string) {
+  const home = os.homedir()
+  return value.startsWith(home) ? `~${value.slice(home.length)}` : value
+}
 
 export function collapseWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim()
