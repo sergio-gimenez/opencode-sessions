@@ -1,6 +1,6 @@
-import os from "node:os"
 import readline from "node:readline"
 
+import { shortenHome } from "./format.js"
 import { searchSessions } from "./sessions.js"
 import type { ClaudeAccount, SessionPreview, SessionSource } from "./types.js"
 
@@ -13,8 +13,6 @@ export type PickResult = {
 function otherTool(source: SessionSource): SessionSource {
   return source === "claude" ? "opencode" : "claude"
 }
-
-const HOME = os.homedir()
 
 function clearScreen() {
   process.stdout.write("\x1Bc")
@@ -87,10 +85,6 @@ function termSize() {
   }
 }
 
-function shortenPath(value: string) {
-  return value.startsWith(HOME) ? `~${value.slice(HOME.length)}` : value
-}
-
 function truncatePlain(value: string, width: number) {
   if (width <= 1) return ""
   if (value.length <= width) return value
@@ -149,7 +143,7 @@ function renderPreview(session: SessionPreview, query: string, width: number) {
 
   const lines = [
     bold(put(session.title)),
-    dim(put(shortenPath(session.directory))),
+    dim(put(shortenHome(session.directory))),
     dim(truncatePlain(
       `${session.updatedAtLabel}  ${session.source === "claude" ? `${claudeLabel(session.claudeAccount)}  ` : ""}${session.id}`,
       width,
@@ -195,7 +189,7 @@ function renderList(
     const marker = active ? cyan(">") : " "
     const titleWidth = Math.max(4, width - sessionBadgeText(session, target).length - 4)
     const title = truncatePlain(session.title, titleWidth)
-    const dir = truncatePlain(shortenPath(session.directory), indentWidth)
+    const dir = truncatePlain(shortenHome(session.directory), indentWidth)
     const date = truncatePlain(session.updatedAtLabel, indentWidth)
 
     return [

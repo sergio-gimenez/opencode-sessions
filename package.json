@@ -1,21 +1,53 @@
 {
   "name": "opencode-sessions",
   "version": "1.0.0",
-  "description": "OpenCode session picker across all local projects",
+  "description": "One picker for your OpenCode and Claude Code sessions, across every local project and Claude account",
   "main": "dist/cli.js",
   "bin": {
     "ocs": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "scripts/install-local.sh",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "demo": "bash ./demo/run.sh",
+    "demo:build": "node ./demo/build-fixtures.mjs",
+    "demo:gif": "bash ./demo/gif.sh",
+    "demo:record": "bash ./demo/record.sh",
     "dev": "tsx src/cli.ts",
     "install:local": "bash ./scripts/install-local.sh",
     "print": "tsx src/cli.ts --print",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "opencode",
+    "claude-code",
+    "cli",
+    "sessions",
+    "session-manager",
+    "picker",
+    "fuzzy-search",
+    "tui",
+    "ai-coding"
+  ],
+  "author": "Sergio Gimenez",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sergio-gimenez/opencode-sessions.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sergio-gimenez/opencode-sessions/issues"
+  },
+  "homepage": "https://github.com/sergio-gimenez/opencode-sessions#readme",
+  "engines": {
+    "node": ">=20"
+  },
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^12.9.0"

@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest something ocs should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The workflow you are stuck on, not the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like ocs to do
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How you handle it today

@@ -1,85 +1,121 @@
-# opencode-sessions
+<h1 align="center">ocs</h1>
 
-Small CLI (`ocs`) to search and reopen **OpenCode and Claude Code** sessions
-across all local projects, from a single picker.
+<p align="center">
+  <b>One picker for every OpenCode and Claude Code session on your machine.</b><br>
+  Search across all your projects and Claude accounts, then jump back in — or carry the conversation into the other tool.
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/sergio-gimenez/opencode-sessions/actions/workflows/cnpm run typecheck && npm test && npm run buildi.yml"><img alt="CI" src="https://github.com/sergio-gimenez/opencode-sessions/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Node >=20" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg">
+  <img alt="Zero TUI dependencies" src="https://img.shields.io/badge/deps-1-lightgrey.svg">
+</p>
 
-- Lists sessions from both the OpenCode SQLite database and every configured
-  Claude Code account, merged and ordered by most recent update
-- `[OC]` / `[CC1]` / `[CC1→CC2]` badges show ownership and target account
-- Searches by title, directory, and all user prompts (optionally assistant text)
-- Responsive two-column picker that adapts to the terminal size
-- **Enter** follows the displayed Claude account route (OpenCode stays native)
-- **Tab** opens it in the *other* tool as a fresh, transcript-seeded session
-- **Ctrl+T** cycles the target Claude account
-- **Shift+Tab** also opens or forks into the displayed target Claude account
-- Optional permission bypass (`--dangerous`) with a config-file default
+<p align="center">
+  <img src="docs/demo.gif" alt="ocs listing OpenCode and Claude Code sessions side by side, filtering them, and forking one into a second Claude account" width="100%">
+</p>
 
-## Picking a session
+<p align="center"><sub>The demo runs against synthetic sessions — see <a href="demo/README.md">demo/</a>.</sub></p>
 
-- `Enter` → follow the displayed route. `[CC1]` resumes CC1; `[CC1→CC2]`
-  creates a transcript-seeded CC2 fork. OpenCode sessions resume natively.
-- `Tab` → open in the other tool. Ids are **not** portable between OpenCode and
-  Claude Code, so this forks a **new** session in the target tool, seeded with
-  the full transcript of the picked one.
-- `Ctrl+T` → cycle the target Claude account shown above the query.
-- `Shift+Tab` → open in the target Claude account. This resumes when the
-  selected session already belongs to that account; otherwise it creates a
-  transcript-seeded fork.
+## Why
 
-### Migration is a fork, not a move — drive it deliberately
+Your work is scattered. Some of it is in OpenCode, some in Claude Code, some in
+a second Claude account, and all of it is split across a dozen project
+directories. Finding the session where you actually solved that thing means
+remembering which tool you were in, `cd`-ing to the right repo, and paging
+through a resume list per tool per account.
 
-Cross-tool and cross-account opens do **not** migrate a session; they create a
-new session and paste the transcript in as context. Consequences:
+`ocs` reads both tools' stores directly and puts everything in one list, newest
+first, searchable by what you actually typed.
+
+## Install
+
+Needs Node 20+ and, obviously, OpenCode and/or Claude Code.
+
+```bash
+git clone https://github.com/sergio-gimenez/opencode-sessions.git
+cd opencode-sessions
+npm install
+npm run build
+npm run install:local     # puts `ocs` in ~/.local/bin, no root needed
+```
+
+Then just:
+
+```bash
+ocs
+```
+
+## Try it without touching your own sessions
+
+```bash
+npm run demo
+```
+
+This builds a synthetic history — two Claude accounts, an OpenCode store, four
+fake projects — and runs the real picker against it with opening stubbed out.
+Nothing of yours is read and nothing is launched. Details in
+[`demo/README.md`](demo/README.md).
+
+## Keys
+
+| Key | What it does |
+| --- | --- |
+| type | Filter by title, directory and your prompts |
+| `↑` `↓` | Move the selection |
+| `PgUp` `PgDn` `Home` `End` | Jump |
+| `Enter` | Follow the displayed route |
+| `Tab` | Open in the *other* tool, as a transcript-seeded fork |
+| `Ctrl+T` | Cycle the target Claude account |
+| `Shift+Tab` | Open into the displayed target Claude account |
+| `Esc` `Ctrl+C` | Cancel |
+
+## Reading the list
+
+Each row carries a badge telling you where the session lives and where `Enter`
+will take it:
+
+| Badge | Meaning |
+| --- | --- |
+| `[OC]` | An OpenCode session. `Enter` resumes it natively. |
+| `[CC1]` | A Claude session in account `cc1`, and `cc1` is the current target. `Enter` resumes it. |
+| `[CC1→CC2]` | A Claude session in `cc1` while `cc2` is the target. `Enter` forks it into `cc2`. |
+
+The right column previews the selected session: title, directory, id, your most
+recent prompts, and — with `--assistant` — recent assistant replies. Search
+terms are highlighted in both columns.
+
+## Migration is a fork, not a move
+
+Cross-tool and cross-account opens do **not** migrate a session. Session ids are
+not portable between OpenCode and Claude Code, or between two Claude accounts,
+so `ocs` starts a **new** session in the target and pastes the old transcript in
+as context. Consequences worth knowing:
 
 - The original session still exists in its own tool, untouched.
-- Ping-ponging (CC → OC → CC …) leaves a **chain of partial copies**, and each
-  hop reconstructs state from a transcript rather than true resumed state.
+- Ping-ponging (CC → OC → CC …) leaves a **chain of partial copies**, and every
+  hop reconstructs state from a transcript rather than resuming real state.
 - Always fork from the **most recent** node (top of the list) so you carry the
   latest work forward, not a stale branch.
 
-Best practice: **you** drive migration at a natural boundary — e.g. a task is
-finished and you want to keep the general context but continue in the other
-tool. Don't treat Tab as a live round-trip; treat it as "start fresh over there,
-with this history."
-
-## Permissions
-
-Bypass permission checks when opening (`claude --dangerously-skip-permissions`
-/ `opencode --auto`):
-
-```bash
-ocs --dangerous     # or --skip-permissions / --yolo
-ocs --safe          # force checks on, overriding the config default
-```
-
-Set the default in `~/.config/ocs/config.json`:
-
-```json
-{ "skipPermissions": true }
-```
-
-The CLI flag overrides the config per run.
+Best practice: drive migration deliberately, at a natural boundary — a task is
+finished and you want to keep the general context while continuing in the other
+tool. Don't treat `Tab` as a live round-trip; treat it as "start fresh over
+there, with this history."
 
 ## Multiple Claude accounts
 
 Use Claude Code's normal home for the first account and an isolated
-`CLAUDE_CONFIG_DIR` for each additional account. Example shell functions:
+`CLAUDE_CONFIG_DIR` for each additional one:
 
 ```bash
 cc1() { command claude "$@"; }
 cc2() { CLAUDE_CONFIG_DIR="$HOME/.claude-cc2" command claude "$@"; }
 ```
 
-Authenticate each account once:
-
-```bash
-cc1 auth login
-cc2 auth login
-```
-
-Then configure `ocs` in `~/.config/ocs/config.json`:
+Authenticate each once (`cc1 auth login`, `cc2 auth login`), then tell `ocs`
+about them in `~/.config/ocs/config.json`:
 
 ```json
 {
@@ -92,65 +128,86 @@ Then configure `ocs` in `~/.config/ocs/config.json`:
 }
 ```
 
-`ocs` scans each account's `projects` directory and preserves account ownership
-when resuming. A Claude session opened in another Claude account becomes a new,
-transcript-seeded fork; the original account's session stays untouched.
-Omit `configDir` for Claude Code's normal default account.
+Omit `configDir` for Claude Code's normal default account. `ocs` scans each
+account's `projects` directory and preserves account ownership when resuming, so
+a `cc1` session resumes in `cc1` unless you deliberately retarget it.
 
-Choose the initial target from the command line when useful:
+Pick the starting target from the command line when useful:
 
 ```bash
 ocs --claude-account cc2
 ```
 
-Inside the picker, `Ctrl+T` cycles the target. `Enter` follows the displayed
-route; `Shift+Tab` is an equivalent explicit target shortcut. Claude rows show
-the route when source and target differ: selecting CC2 changes a CC1 row from
-`[CC1]` to `[CC1→CC2]`.
+Full Linux, macOS and PowerShell setup, verification and troubleshooting lives in
+[Using multiple Claude Code accounts](docs/multiple-claude-accounts.md).
 
-See [Using multiple Claude Code accounts](docs/multiple-claude-accounts.md) for
-complete Linux, macOS, and PowerShell setup, verification, usage, and
-troubleshooting.
+## Permissions
 
-## Usage
+Launch the target tool with permission checks bypassed
+(`claude --dangerously-skip-permissions` / `opencode --auto`):
 
 ```bash
-npm install
-npm run dev
+ocs --dangerous     # also --skip-permissions / --yolo
+ocs --safe          # force checks back on, overriding the config default
 ```
 
-Start with a query:
+Set the default in `~/.config/ocs/config.json` with `"skipPermissions": true`.
+The CLI flag wins per run.
 
-```bash
-npm run dev -- --query "wireguard mesh"
+> **Note**
+> Skipping permission checks lets the agent act on your filesystem without
+> prompting. Turn it on only for directories where you accept that.
+
+## Command line
+
+| Flag | Effect |
+| --- | --- |
+| `--print` | List the 25 most recent sessions and exit, no picker |
+| `--query <text>` | Start the picker with a filter already applied |
+| `--assistant` | Search assistant replies too, not just your prompts |
+| `--claude-account <name>` | Start with this Claude account as the target |
+| `--dangerous`, `--skip-permissions`, `--yolo` | Bypass permission checks |
+| `--safe`, `--no-skip-permissions` | Force permission checks on |
+| `--help`, `-h` | Usage |
+
+### Dry run
+
+Set `OCS_DRY_RUN=1` and `ocs` prints what it *would* launch — command, Claude
+account, working directory — instead of launching it. Useful for checking how a
+route resolves, and for bug reports:
+
+```console
+$ OCS_DRY_RUN=1 ocs
+would run CLAUDE_CONFIG_DIR=~/.claude-cc2 claude <transcript seed, 1297 chars>
+  in ~/code/pixel-forge
 ```
 
-Include assistant text in search:
+## Where the data comes from
+
+`ocs` reads both tools' existing stores. It never writes to them.
+
+| Source | Path | Override |
+| --- | --- | --- |
+| OpenCode | `~/.local/share/opencode/opencode.db` (SQLite) | `OPENCODE_DB_PATH` |
+| Claude Code | `~/.claude/projects/**/*.jsonl`, plus each account's `configDir` | `CLAUDE_PROJECTS_PATH` |
+| `ocs` config | `~/.config/ocs/config.json` | `OCS_CONFIG_PATH` |
+
+A missing or unreadable source is skipped rather than fatal — if OpenCode isn't
+installed you still get your Claude sessions, and vice versa.
+
+## Development
 
 ```bash
-npm run dev -- --assistant
-```
-
-Print recent sessions without opening the picker:
-
-```bash
-npm run print
-```
-
-Build the CLI:
-
-```bash
+npm run dev          # run the picker from source
+npm run print        # list recent sessions, no TUI
+npm run demo         # picker against synthetic sessions, opening stubbed out
+npm run typecheck
+npm test
 npm run build
 ```
 
-Install `ocs` into `~/.local/bin` without root:
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-```bash
-npm run install:local
-```
+## License
 
-Run tests:
-
-```bash
-npm test
-```
+[MIT](LICENSE) © Sergio Gimenez

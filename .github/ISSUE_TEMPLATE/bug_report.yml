@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in ocs does not work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it go wrong
+      options:
+        - Listing sessions (something missing, wrong, or unreadable)
+        - Searching or filtering
+        - The picker's layout or keys
+        - Opening or resuming a session
+        - Cross-tool or cross-account forking
+        - Config file / multiple Claude accounts
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: dry-run
+    attributes:
+      label: Dry-run output
+      description: >
+        For anything about opening a session, run `OCS_DRY_RUN=1 ocs` and paste
+        the "would run" line. Nothing is launched in dry-run mode.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: ocs version or commit
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS, terminal and Node version
+      placeholder: "macOS 15, Ghostty, Node 22.11"
+    validations:
+      required: true

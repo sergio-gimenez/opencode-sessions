@@ -75,6 +75,13 @@ async function main() {
   })
 }
 
+// `ocs --print | head` closes the pipe early; that is the caller getting what
+// they asked for, not a failure worth a stack trace.
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EPIPE") process.exit(0)
+  throw error
+})
+
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
   process.stderr.write(`${message}\n`)

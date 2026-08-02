@@ -1,2 +1,5 @@
 node_modules/
 dist/
+
+# Generated demo fixture home (rebuild with `npm run demo:build`).
+demo/.fixture/
