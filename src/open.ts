@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import fs from "node:fs"
 
 import { shortenHome } from "./format.js"
 import type { ClaudeAccount } from "./types.js"
@@ -28,7 +29,21 @@ export function renderCommand(
   return `${prefix}${command} ${args.map(renderArg).join(" ")}\n  in ${shortenHome(directory)}`
 }
 
+// A session records the cwd it ran in. Projects get renamed and moved, so that
+// path can be gone by the time we resume. Node reports a missing spawn cwd as
+// "spawn <command> ENOENT", which reads as "the tool is not installed" and
+// sends people hunting the wrong bug.
+export function assertDirectory(directory: string) {
+  if (fs.existsSync(directory)) return
+  throw new Error(
+    `Session directory no longer exists: ${shortenHome(directory)}\n` +
+      "The project was probably moved or renamed since this session ran.",
+  )
+}
+
 function run(command: string, args: string[], directory: string, env?: NodeJS.ProcessEnv) {
+  assertDirectory(directory)
+
   if (process.env.OCS_DRY_RUN) {
     process.stdout.write(`\x1b[36mwould run\x1b[0m ${renderCommand(command, args, directory, env)}\n`)
     return Promise.resolve(0)

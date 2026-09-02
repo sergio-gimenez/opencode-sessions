@@ -1,7 +1,19 @@
 import os from "node:os"
 import { describe, expect, it, vi } from "vitest"
 
-import { renderCommand } from "../src/open.js"
+import { assertDirectory, renderCommand } from "../src/open.js"
+
+describe("assertDirectory", () => {
+  it("accepts a directory that exists", () => {
+    expect(() => assertDirectory(os.tmpdir())).not.toThrow()
+  })
+
+  it("names the missing directory instead of failing as a spawn ENOENT", () => {
+    expect(() => assertDirectory("/tmp/ocs-does-not-exist-9f3a")).toThrow(
+      /Session directory no longer exists: \/tmp\/ocs-does-not-exist-9f3a/,
+    )
+  })
+})
 
 describe("renderCommand", () => {
   it("renders a native resume", () => {
