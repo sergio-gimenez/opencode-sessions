@@ -201,6 +201,23 @@ function renderList(
   })
 }
 
+// Terminals disagree on what Enter sends: a raw-mode tty usually delivers "\r"
+// (name "return"), but any layer with ICRNL still on delivers "\n" (name
+// "enter"). Accept both, or Enter silently falls through to the query.
+export function isSubmitKey(key: readline.Key) {
+  return key.name === "return" || key.name === "enter"
+}
+
+// Only printable input belongs in the query. Control bytes (Enter, Ctrl+D, …)
+// that reach the catch-all would otherwise be appended invisibly and skew the
+// filter.
+export function queryInput(key: readline.Key) {
+  if (key.ctrl || key.meta || !key.sequence) return ""
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(key.sequence)) return ""
+  return key.sequence
+}
+
 function clampIndex(index: number, length: number) {
   if (length === 0) return 0
   if (index < 0) return 0
@@ -313,7 +330,7 @@ export async function pickSession(
         return
       }
 
-      if (key.name === "return") {
+      if (isSubmitKey(key)) {
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
@@ -392,8 +409,9 @@ export async function pickSession(
         return
       }
 
-      if (!key.ctrl && !key.meta && key.sequence) {
-        query += key.sequence
+      const typed = queryInput(key)
+      if (typed) {
+        query += typed
         activeIndex = 0
         render()
       }
