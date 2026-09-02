@@ -7,6 +7,7 @@ import { loadConfig } from "./config.js"
 import { openClaudeFresh, openClaudeSession, openOpencodeFresh, openSession } from "./open.js"
 import { pickSession } from "./picker.js"
 import { buildSessionSeed } from "./seed.js"
+import type { PickMode } from "./picker.js"
 import type { ClaudeAccount, SessionPreview, SessionSource } from "./types.js"
 
 function sameAccount(left?: ClaudeAccount, right?: ClaudeAccount) {
@@ -16,26 +17,32 @@ function sameAccount(left?: ClaudeAccount, right?: ClaudeAccount) {
 async function openWith(
   tool: SessionSource,
   session: SessionPreview,
-  opts: { skipPermissions: boolean; claudeAccount?: ClaudeAccount },
+  opts: { skipPermissions: boolean; mode: PickMode; claudeAccount?: ClaudeAccount },
 ) {
-  // Native tool and account: resume the real session by id.
+  const { mode, ...runOpts } = opts
+  const fork = mode === "fork"
+
+  // Native tool and account: resume the real session by id, or let the tool
+  // branch it into a new one.
   if (
     tool === session.source &&
     (tool !== "claude" || sameAccount(session.claudeAccount, opts.claudeAccount))
   ) {
     return tool === "claude"
       ? openClaudeSession(session.id, session.directory, {
-          ...opts,
+          ...runOpts,
+          fork,
           account: opts.claudeAccount ?? session.claudeAccount,
         })
-      : openSession(session.id, session.directory, opts)
+      : openSession(session.id, session.directory, { ...runOpts, fork })
   }
 
   // Cross-tool and cross-account ids are not portable; seed a fresh session.
+  // That is already a fork: the original session is left untouched either way.
   const seed = await buildSessionSeed(session)
   return tool === "claude"
-    ? openClaudeFresh(seed.directory, seed.prompt, { ...opts, account: opts.claudeAccount })
-    : openOpencodeFresh(seed.directory, seed.prompt, opts)
+    ? openClaudeFresh(seed.directory, seed.prompt, { ...runOpts, account: opts.claudeAccount })
+    : openOpencodeFresh(seed.directory, seed.prompt, runOpts)
 }
 
 async function main() {
@@ -71,6 +78,7 @@ async function main() {
 
   process.exitCode = await openWith(picked.tool, picked.session, {
     skipPermissions,
+    mode: picked.mode,
     claudeAccount: picked.claudeAccount,
   })
 }

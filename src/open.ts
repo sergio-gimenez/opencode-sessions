@@ -4,7 +4,7 @@ import fs from "node:fs"
 import { shortenHome } from "./format.js"
 import type { ClaudeAccount } from "./types.js"
 
-export type OpenOptions = { skipPermissions?: boolean }
+export type OpenOptions = { skipPermissions?: boolean; fork?: boolean }
 export type ClaudeOpenOptions = OpenOptions & { account?: ClaudeAccount }
 
 const SEED_PROMPT_MIN_CHARS = 200
@@ -71,12 +71,16 @@ function claudeEnvironment(account?: ClaudeAccount) {
 
 export function openSession(sessionId: string, directory: string, opts?: OpenOptions) {
   const args = ["--session", sessionId]
+  // Native fork: the tool copies the history into a new session id, so the
+  // original stays untouched and the copy keeps the full context.
+  if (opts?.fork) args.push("--fork")
   if (opts?.skipPermissions) args.push("--auto")
   return run("opencode", args, directory)
 }
 
 export function openClaudeSession(sessionId: string, directory: string, opts?: ClaudeOpenOptions) {
   const args = ["--resume", sessionId]
+  if (opts?.fork) args.push("--fork-session")
   if (opts?.skipPermissions) args.push("--dangerously-skip-permissions")
   return run(
     "claude",

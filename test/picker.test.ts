@@ -63,7 +63,7 @@ describe("Query input", () => {
   })
 
   it("drops control and modified keys", () => {
-    expect(queryInput({ sequence: "", name: "d", ctrl: true })).toBe("")
+    expect(queryInput({ sequence: "", name: "d", ctrl: true })).toBe("")
     expect(queryInput({ sequence: "b", name: "b", meta: true })).toBe("")
     expect(queryInput({ name: "left" })).toBe("")
   })
@@ -74,12 +74,35 @@ describe("Enter destination", () => {
     expect(enterDestination(session, cc2)).toEqual({
       session,
       tool: "claude",
+      mode: "resume",
       claudeAccount: cc2,
     })
   })
 
   it("keeps OpenCode sessions native", () => {
     const opencode = { ...session, source: "opencode" as const }
-    expect(enterDestination(opencode, cc2)).toEqual({ session: opencode, tool: "opencode" })
+    expect(enterDestination(opencode, cc2)).toEqual({
+      session: opencode,
+      tool: "opencode",
+      mode: "resume",
+    })
+  })
+
+  it("carries the fork mode down the same route", () => {
+    expect(enterDestination(session, cc1, "fork")).toEqual({
+      session,
+      tool: "claude",
+      mode: "fork",
+      claudeAccount: cc1,
+    })
+  })
+
+  it("forks OpenCode sessions in OpenCode", () => {
+    const opencode = { ...session, source: "opencode" as const }
+    expect(enterDestination(opencode, cc2, "fork")).toEqual({
+      session: opencode,
+      tool: "opencode",
+      mode: "fork",
+    })
   })
 })

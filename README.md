@@ -66,6 +66,7 @@ Nothing of yours is read and nothing is launched. Details in
 | `↑` `↓` | Move the selection |
 | `PgUp` `PgDn` `Home` `End` | Jump |
 | `Enter` | Follow the displayed route |
+| `Ctrl+F` | Fork: follow the same route, but branch into a new session |
 | `Tab` | Open in the *other* tool, as a transcript-seeded fork |
 | `Ctrl+T` | Cycle the target Claude account |
 | `Shift+Tab` | Open into the displayed target Claude account |
@@ -81,6 +82,25 @@ will take it:
 | `[OC]` | An OpenCode session. `Enter` resumes it natively. |
 | `[CC1]` | A Claude session in account `cc1`, and `cc1` is the current target. `Enter` resumes it. |
 | `[CC1→CC2]` | A Claude session in `cc1` while `cc2` is the target. `Enter` forks it into `cc2`. |
+
+## Forking a session
+
+`Enter` continues the picked session: new turns land in the original
+conversation. `Ctrl+F` takes the same route but **forks** — it branches the
+session into a new one, so you can explore a different direction while the
+original stays exactly as you left it.
+
+Within one tool and account the fork is native, so the copy keeps the real
+session state:
+
+```
+claude --resume <id> --fork-session
+opencode --session <id> --fork
+```
+
+Across tools or Claude accounts ids are not portable, so `Ctrl+F` and `Enter`
+both land on the transcript-seeded path described below — which is already a
+fork, since the original is never modified.
 
 The right column previews the selected session: title, directory, id, your most
 recent prompts, and — with `--assistant` — recent assistant replies. Search

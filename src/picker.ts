@@ -4,9 +4,14 @@ import { shortenHome } from "./format.js"
 import { searchSessions } from "./sessions.js"
 import type { ClaudeAccount, SessionPreview, SessionSource } from "./types.js"
 
+// "resume" continues the picked session in place; "fork" branches off it into a
+// new session, leaving the original conversation as it was.
+export type PickMode = "resume" | "fork"
+
 export type PickResult = {
   session: SessionPreview
   tool: SessionSource
+  mode: PickMode
   claudeAccount?: ClaudeAccount
 }
 
@@ -61,16 +66,18 @@ export function sessionBadgeText(session: SessionPreview, target?: ClaudeAccount
 export function enterDestination(
   session: SessionPreview,
   target?: ClaudeAccount,
+  mode: PickMode = "resume",
 ): PickResult {
   if (session.source === "claude") {
     return {
       session,
       tool: "claude",
+      mode,
       claudeAccount: target ?? session.claudeAccount,
     }
   }
 
-  return { session, tool: "opencode" }
+  return { session, tool: "opencode", mode }
 }
 
 function badge(session: SessionPreview, target?: ClaudeAccount) {
@@ -286,8 +293,8 @@ export async function pickSession(
       ? target ? `Claude ${claudeLabel(target)}` : "Claude"
       : "OpenCode"
     const openHint = selectedNow
-      ? `Enter: ${enterName}. Tab: ${otherName}.`
-      : "Enter opens natively. Tab opens with the other tool."
+      ? `Enter: ${enterName}. Ctrl+F: fork it. Tab: ${otherName}.`
+      : "Enter opens natively. Ctrl+F forks. Tab opens with the other tool."
     process.stdout.write(`${dim(`Type to filter. ↑↓ move. PgUp/PgDn jump. ${openHint} Esc cancels.`)}\n`)
     const accountHint = target
       ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Enter follows displayed route.`
@@ -338,12 +345,22 @@ export async function pickSession(
         return
       }
 
+      // Fork follows the same route as Enter, but branches into a new session
+      // instead of writing more turns into the picked one.
+      if (key.ctrl && key.name === "f") {
+        const selected = filtered[activeIndex]
+        if (!selected) return
+        cleanup()
+        resolve(enterDestination(selected, targetClaudeAccount(), "fork"))
+        return
+      }
+
       if ((key.name === "tab" && key.shift) || key.name === "backtab") {
         const selected = filtered[activeIndex]
         const target = targetClaudeAccount()
         if (!selected || !target) return
         cleanup()
-        resolve({ session: selected, tool: "claude", claudeAccount: target })
+        resolve({ session: selected, tool: "claude", mode: "resume", claudeAccount: target })
         return
       }
 
@@ -355,6 +372,7 @@ export async function pickSession(
         resolve({
           session: selected,
           tool,
+          mode: "resume",
           claudeAccount: tool === "claude" ? targetClaudeAccount() : undefined,
         })
         return

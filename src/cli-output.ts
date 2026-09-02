@@ -30,6 +30,7 @@ export function printHelp() {
     "  type                  filter by title, directory and your prompts",
     "  up/down, PgUp/PgDn    move the selection",
     "  Enter                 follow the route shown in the badge",
+    "  Ctrl+F                fork: branch that route into a new session",
     "  Tab                   open in the other tool, as a seeded fork",
     "  Ctrl+T                cycle the target Claude account",
     "  Shift+Tab             open into the target Claude account",

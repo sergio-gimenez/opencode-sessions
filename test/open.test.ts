@@ -1,7 +1,7 @@
 import os from "node:os"
 import { describe, expect, it, vi } from "vitest"
 
-import { assertDirectory, renderCommand } from "../src/open.js"
+import { assertDirectory, openClaudeSession, openSession, renderCommand } from "../src/open.js"
 
 describe("assertDirectory", () => {
   it("accepts a directory that exists", () => {
@@ -12,6 +12,48 @@ describe("assertDirectory", () => {
     expect(() => assertDirectory("/tmp/ocs-does-not-exist-9f3a")).toThrow(
       /Session directory no longer exists: \/tmp\/ocs-does-not-exist-9f3a/,
     )
+  })
+})
+
+describe("fork flags", () => {
+  const dryRun = async (open: () => Promise<number>) => {
+    const written: string[] = []
+    const spy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk: string | Uint8Array) => {
+        written.push(String(chunk))
+        return true
+      })
+
+    vi.stubEnv("OCS_DRY_RUN", "1")
+    try {
+      await open()
+    } finally {
+      spy.mockRestore()
+      vi.unstubAllEnvs()
+    }
+
+    return written.join("")
+  }
+
+  it("forks a Claude session with --fork-session", async () => {
+    const output = await dryRun(() => openClaudeSession("sid", os.tmpdir(), { fork: true }))
+    expect(output).toContain("claude --resume sid --fork-session")
+  })
+
+  it("resumes a Claude session in place without the flag", async () => {
+    const output = await dryRun(() => openClaudeSession("sid", os.tmpdir()))
+    expect(output).not.toContain("--fork-session")
+  })
+
+  it("forks an OpenCode session with --fork", async () => {
+    const output = await dryRun(() => openSession("sid", os.tmpdir(), { fork: true }))
+    expect(output).toContain("opencode --session sid --fork")
+  })
+
+  it("resumes an OpenCode session in place without the flag", async () => {
+    const output = await dryRun(() => openSession("sid", os.tmpdir()))
+    expect(output).not.toContain("--fork")
   })
 })
 

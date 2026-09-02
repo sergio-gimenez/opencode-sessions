@@ -147,6 +147,7 @@ Picker controls:
 | Key | Action |
 | --- | --- |
 | `Enter` | Follow the displayed Claude route; resume OpenCode natively |
+| `Ctrl+F` | Fork the displayed route into a new session |
 | `Tab` | Open in the other tool as a transcript-seeded session |
 | `Ctrl+T` | Cycle the displayed Claude target account |
 | `Shift+Tab` | Also open or fork into the displayed Claude target account |
