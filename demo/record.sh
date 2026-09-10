@@ -22,12 +22,13 @@ mkdir -p "$root/docs"
 export HOME="$fixture_home"
 export OCS_DRY_RUN=1
 # Nothing from the recorder's own environment should reach the recording.
-unset CLAUDE_CONFIG_DIR CLAUDE_PROJECTS_PATH OPENCODE_DB_PATH OCS_CONFIG_PATH
+unset CLAUDE_CONFIG_DIR CLAUDE_PROJECTS_PATH CODEX_HOME CODEX_SESSIONS_PATH \
+      OPENCODE_DB_PATH OCS_CONFIG_PATH
 
 node "$here/keys.mjs" | asciinema rec \
   --overwrite --quiet \
   --cols 120 --rows 32 \
-  --title "ocs - one picker for OpenCode and Claude Code sessions" \
+  --title "ocs - one picker for OpenCode, Claude Code and Codex sessions" \
   --command "node $root/dist/cli.js" \
   "$cast"
 

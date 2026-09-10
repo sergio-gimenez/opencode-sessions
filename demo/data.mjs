@@ -5,7 +5,12 @@
 // session history. `ago` is minutes before "now" at build time, which drives
 // both the ordering in the picker and the timestamp label.
 //
-// `tool` is either "opencode" or the name of a Claude account ("cc1" / "cc2").
+// `tool` is either "opencode" or the name of a Claude account ("cc1" / "cc2")
+// or a Codex account ("cx1" / "cx2").
+//
+// `title` is what OpenCode and Claude store alongside the session. Codex stores
+// no title, so a Codex row is titled by its opening prompt and the title here
+// is only a label for whoever is editing this file.
 
 const NEBULA = "~/code/nebula-api"
 const AURORA = "~/code/aurora-web"
@@ -39,6 +44,20 @@ export const sessions = [
       ["assistant", "Yes. Changed the hook to return status: 'loading' | 'authed' | 'anon' and only redirect on 'anon'. The route guard renders a skeleton while loading. Loop is gone in the repro."],
       ["user", "Add a test that fails on the old code."],
       ["assistant", "Added guard.test.tsx: mounts the guard with a query stuck in loading and asserts navigate was never called. It fails against the previous implementation and passes now."],
+    ],
+  },
+  {
+    tool: "cx1",
+    ago: 63,
+    dir: NEBULA,
+    title: "Rate limiter counts retries as new requests",
+    turns: [
+      ["user", "The rate limiter rejects clients well under their quota."],
+      ["assistant", "It counts SDK retries as fresh requests. The limiter increments in the middleware before the handler runs, and the SDK retries a 503 three times, so one logical call burns four tokens from the bucket."],
+      ["user", "Can we make the retries idempotent against the bucket?"],
+      ["assistant", "Added an Idempotency-Key header the SDK reuses across retries of the same call. The limiter now increments once per key and stores the outcome for 60s, so retries read the cached decision instead of paying again."],
+      ["user", "What if a client never sends the header?"],
+      ["assistant", "Falls back to the old per-request counting, so nothing gets more permissive by omitting it. Logged a metric for keyless traffic so we can see who to nudge."],
     ],
   },
   {
@@ -178,6 +197,20 @@ export const sessions = [
       ["assistant", "Added x86_64-unknown-linux-musl to the release workflow via cross. Binary is 4.1MB static and runs on Alpine, Debian and a scratch container."],
       ["user", "Keep the glibc build too?"],
       ["assistant", "Kept both. musl's allocator is measurably slower under the parallel workload, so the glibc build stays the default download and musl is the portable fallback."],
+    ],
+  },
+  {
+    tool: "cx2",
+    ago: 4200,
+    dir: FORGE,
+    title: "Colour profiles dropped on resize",
+    turns: [
+      ["user", "Resized JPEGs come out washed out."],
+      ["assistant", "The originals carry an Adobe RGB profile and the outputs are tagged as nothing, so viewers assume sRGB. The resize path decodes to a raw buffer and re-encodes without copying the ICC chunk."],
+      ["user", "Carry the profile through, or convert to sRGB?"],
+      ["assistant", "Convert. Carrying Adobe RGB through means every downstream consumer has to be colour-managed. Added an lcms2 transform to sRGB during resize and tag the output explicitly."],
+      ["user", "Does that slow the batch down much?"],
+      ["assistant", "About 4% on the 500 image batch. The transform is cached per source profile, so it only builds once per distinct input profile rather than per image."],
     ],
   },
   {
