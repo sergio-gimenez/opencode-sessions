@@ -3,7 +3,7 @@ import os from "node:os"
 import path from "node:path"
 
 import { collapseWhitespace, formatUpdatedAt, truncate } from "./format.js"
-import type { ClaudeAccount, SessionPreview, SessionSearchScope } from "./types.js"
+import type { Account, SessionPreview, SessionSearchScope } from "./types.js"
 
 const PROMPT_LIMIT = 3
 const JSONL_EXT = ".jsonl"
@@ -65,8 +65,8 @@ export function parseClaudeSession(
     sessionId: string
     updatedAtMs: number
     scope: SessionSearchScope
-    account?: ClaudeAccount
-    projectsPath?: string
+    account?: Account
+    filePath?: string
   },
 ): SessionPreview | null {
   let title = ""
@@ -119,8 +119,8 @@ export function parseClaudeSession(
     updatedAtLabel: formatUpdatedAt(meta.updatedAtMs),
     prompts: userTexts.slice(-PROMPT_LIMIT).map((text) => truncate(text)),
     assistantSnippets: assistantTexts.slice(-PROMPT_LIMIT).map((text) => truncate(text)),
-    claudeAccount: meta.account,
-    claudeProjectsPath: meta.projectsPath,
+    account: meta.account,
+    filePath: meta.filePath,
     searchText: [
       title,
       directory,
@@ -134,13 +134,11 @@ export function parseClaudeSession(
 export function getClaudeSessions(options?: {
   projectsPath?: string
   search?: SessionSearchScope
-  account?: ClaudeAccount
+  account?: Account
 }): SessionPreview[] {
   const root = resolveProjectsPath(
     options?.projectsPath ??
-      (options?.account?.configDir
-        ? path.join(options.account.configDir, "projects")
-        : undefined),
+      (options?.account?.home ? path.join(options.account.home, "projects") : undefined),
   )
   const scope = options?.search ?? "user"
 
@@ -177,7 +175,7 @@ export function getClaudeSessions(options?: {
           updatedAtMs: stat.mtimeMs,
           scope,
           account: options?.account,
-          projectsPath: root,
+          filePath,
         })
         if (preview) previews.push(preview)
       } catch {

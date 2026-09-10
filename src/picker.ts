@@ -2,7 +2,8 @@ import readline from "node:readline"
 
 import { shortenHome } from "./format.js"
 import { searchSessions } from "./sessions.js"
-import type { ClaudeAccount, SessionPreview, SessionSource } from "./types.js"
+import { accountLabel, isNativeTarget, nextTarget, nextToolTarget, toolName } from "./targets.js"
+import type { Account, SessionPreview, SessionSource } from "./types.js"
 
 // "resume" continues the picked session in place; "fork" branches off it into a
 // new session, leaving the original conversation as it was.
@@ -10,13 +11,8 @@ export type PickMode = "resume" | "fork"
 
 export type PickResult = {
   session: SessionPreview
-  tool: SessionSource
+  target: Account
   mode: PickMode
-  claudeAccount?: ClaudeAccount
-}
-
-function otherTool(source: SessionSource): SessionSource {
-  return source === "claude" ? "opencode" : "claude"
 }
 
 function clearScreen() {
@@ -47,42 +43,56 @@ function blue(value: string) {
   return `\x1b[34m${value}\x1b[0m`
 }
 
-function claudeLabel(account?: ClaudeAccount) {
-  return account?.name.toUpperCase() ?? "CC"
+function green(value: string) {
+  return `\x1b[32m${value}\x1b[0m`
 }
 
-function sameAccount(left?: ClaudeAccount, right?: ClaudeAccount) {
-  return (left?.configDir ?? "") === (right?.configDir ?? "")
+function sessionLabel(session: SessionPreview) {
+  return accountLabel(session.source, session.account)
 }
 
-export function sessionBadgeText(session: SessionPreview, target?: ClaudeAccount) {
-  if (session.source !== "claude") return "[OC]"
-
-  const sourceLabel = claudeLabel(session.claudeAccount)
-  if (!target || sameAccount(session.claudeAccount, target)) return `[${sourceLabel}]`
-  return `[${sourceLabel}→${claudeLabel(target)}]`
+// The badge is the route: one label when the target is where the session
+// already lives, "from→to" when following it means landing somewhere else.
+export function sessionBadgeText(session: SessionPreview, target?: Account) {
+  const from = sessionLabel(session)
+  if (!target || isNativeTarget(session, target)) return `[${from}]`
+  return `[${from}→${accountLabel(target.tool, target)}]`
 }
 
 export function enterDestination(
   session: SessionPreview,
-  target?: ClaudeAccount,
+  target?: Account,
   mode: PickMode = "resume",
 ): PickResult {
-  if (session.source === "claude") {
-    return {
-      session,
-      tool: "claude",
-      mode,
-      claudeAccount: target ?? session.claudeAccount,
-    }
+  return {
+    session,
+    target: target ?? session.account ?? { tool: session.source, name: sessionLabel(session) },
+    mode,
   }
-
-  return { session, tool: "opencode", mode }
 }
 
-function badge(session: SessionPreview, target?: ClaudeAccount) {
-  const text = sessionBadgeText(session, target)
-  return session.source === "claude" ? blue(text) : magenta(text)
+// While the target still follows the selection, no row is going anywhere but
+// its own account, so every badge stays native. Only a pinned target turns the
+// other rows into routes.
+export function badgeTarget(target: Account | undefined, pinned: boolean) {
+  return pinned ? target : undefined
+}
+
+const SOURCE_COLOR: Record<SessionSource, (value: string) => string> = {
+  opencode: magenta,
+  claude: blue,
+  codex: green,
+}
+
+function badge(session: SessionPreview, target?: Account) {
+  return SOURCE_COLOR[session.source](sessionBadgeText(session, target))
+}
+
+// "Claude CC2" rather than a bare label, so the hint line reads as a sentence.
+function destinationName(target: Account) {
+  return target.tool === "opencode"
+    ? toolName(target.tool)
+    : `${toolName(target.tool)} ${accountLabel(target.tool, target)}`
 }
 
 function termSize() {
@@ -152,7 +162,7 @@ function renderPreview(session: SessionPreview, query: string, width: number) {
     bold(put(session.title)),
     dim(put(shortenHome(session.directory))),
     dim(truncatePlain(
-      `${session.updatedAtLabel}  ${session.source === "claude" ? `${claudeLabel(session.claudeAccount)}  ` : ""}${session.id}`,
+      `${session.updatedAtLabel}  ${sessionLabel(session)}  ${session.id}`,
       width,
     )),
     "",
@@ -183,7 +193,7 @@ function renderList(
   pageSize: number,
   query: string,
   width: number,
-  target?: ClaudeAccount,
+  target?: Account,
 ) {
   if (items.length === 0) return [dim("No matches")]
 
@@ -236,8 +246,9 @@ export async function pickSession(
   sessions: SessionPreview[],
   initialQuery = "",
   options?: {
-    claudeAccounts?: ClaudeAccount[]
-    initialClaudeAccount?: ClaudeAccount
+    // Every place a session can be opened, in cycling order.
+    targets?: Account[]
+    initialTarget?: Account
   },
 ): Promise<PickResult> {
   const rl = readline.createInterface({
@@ -254,15 +265,30 @@ export async function pickSession(
   let query = initialQuery
   let activeIndex = 0
   let filtered = searchSessions(sessions, query)
-  const claudeAccounts = options?.claudeAccounts ?? []
-  let claudeAccountIndex = Math.max(
-    0,
-    claudeAccounts.findIndex(
-      (account) => (account.configDir ?? "") === (options?.initialClaudeAccount?.configDir ?? ""),
-    ),
-  )
+  const targets = options?.targets ?? []
 
-  const targetClaudeAccount = () => claudeAccounts[claudeAccountIndex]
+  const indexOfTarget = (wanted?: Account) =>
+    wanted
+      ? targets.findIndex(
+          (target) => target.tool === wanted.tool && target.name === wanted.name,
+        )
+      : -1
+
+  // Until the target is cycled it follows the selection, so Enter resumes what
+  // you picked where it already lives. Cycling pins a destination, and from
+  // then on the badge shows the route to it.
+  let pinnedIndex = indexOfTarget(options?.initialTarget)
+
+  const currentTarget = () => {
+    if (pinnedIndex >= 0) return targets[pinnedIndex]
+    const selected = filtered[activeIndex]
+    return selected ? targets.find((target) => isNativeTarget(selected, target)) : undefined
+  }
+
+  const cycleTarget = (step: number) => {
+    const from = pinnedIndex >= 0 ? pinnedIndex : indexOfTarget(currentTarget())
+    pinnedIndex = nextTarget(targets, from, step)
+  }
 
   const render = () => {
     filtered = searchSessions(sessions, query)
@@ -283,28 +309,31 @@ export async function pickSession(
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
 
     clearScreen()
-    const target = targetClaudeAccount()
-    process.stdout.write(`${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}  ${blue("[CC*]")} ${dim("claude accounts")}\n`)
+    const target = currentTarget()
+    const rowTarget = badgeTarget(target, pinnedIndex >= 0)
+    process.stdout.write(
+      `${bold("Sessions")}  ${magenta("[OC]")} ${dim("opencode")}` +
+        `  ${blue("[CC*]")} ${dim("claude")}  ${green("[CX*]")} ${dim("codex")}\n`,
+    )
     const selectedNow = filtered[activeIndex]
-    const enterName = selectedNow?.source === "claude"
-      ? target ? `Claude ${claudeLabel(target)}` : "Claude"
-      : "OpenCode"
-    const otherName = selectedNow?.source === "opencode"
-      ? target ? `Claude ${claudeLabel(target)}` : "Claude"
-      : "OpenCode"
-    const openHint = selectedNow
-      ? `Enter: ${enterName}. Ctrl+F: fork it. Tab: ${otherName}.`
-      : "Enter opens natively. Ctrl+F forks. Tab opens with the other tool."
+    const enterName = target ? destinationName(target) : "its own tool"
+    const tabTarget = selectedNow
+      ? nextToolTarget(targets, selectedNow.source, target)
+      : undefined
+    const openHint = `Enter: ${enterName}. Ctrl+F: fork it.${
+      tabTarget ? ` Tab: ${destinationName(tabTarget)}.` : ""
+    }`
     process.stdout.write(`${dim(`Type to filter. ↑↓ move. PgUp/PgDn jump. ${openHint} Esc cancels.`)}\n`)
-    const accountHint = target
-      ? `Claude target: ${claudeLabel(target)}. Ctrl+T cycles. Enter follows displayed route.`
-      : "No Claude target configured."
-    process.stdout.write(`${dim(accountHint)}\n`)
+    const targetHint = target
+      ? `Target: ${accountLabel(target.tool, target)}${pinnedIndex < 0 ? " (follows the selection)" : ""}.` +
+        " Ctrl+T / Shift+Tab cycle. Enter follows displayed route."
+      : "No target configured."
+    process.stdout.write(`${dim(targetHint)}\n`)
     process.stdout.write(`Query: ${query}\n`)
     process.stdout.write(`${dim(`${filtered.length} matches  Page ${pageIndex + 1}/${pageCount}`)}\n\n`)
 
     const selected = filtered[activeIndex]
-    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth, target)
+    const left = renderList(filtered, activeIndex, pageStart, pageSize, query, leftWidth, rowTarget)
     const right = selected
       ? renderPreview(selected, query, rightWidth)
       : [dim("No session selected")]
@@ -341,7 +370,7 @@ export async function pickSession(
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve(enterDestination(selected, targetClaudeAccount()))
+        resolve(enterDestination(selected, currentTarget()))
         return
       }
 
@@ -351,35 +380,31 @@ export async function pickSession(
         const selected = filtered[activeIndex]
         if (!selected) return
         cleanup()
-        resolve(enterDestination(selected, targetClaudeAccount(), "fork"))
+        resolve(enterDestination(selected, currentTarget(), "fork"))
         return
       }
 
+      // Shift+Tab walks the target list backwards, the counterpart to Ctrl+T.
       if ((key.name === "tab" && key.shift) || key.name === "backtab") {
-        const selected = filtered[activeIndex]
-        const target = targetClaudeAccount()
-        if (!selected || !target) return
-        cleanup()
-        resolve({ session: selected, tool: "claude", mode: "resume", claudeAccount: target })
+        cycleTarget(-1)
+        render()
         return
       }
 
+      // Tab skips straight to the next tool rather than stepping through the
+      // other accounts of the current one, and opens there right away.
       if (key.name === "tab") {
         const selected = filtered[activeIndex]
         if (!selected) return
+        const tabTarget = nextToolTarget(targets, selected.source, currentTarget())
+        if (!tabTarget) return
         cleanup()
-        const tool = otherTool(selected.source)
-        resolve({
-          session: selected,
-          tool,
-          mode: "resume",
-          claudeAccount: tool === "claude" ? targetClaudeAccount() : undefined,
-        })
+        resolve(enterDestination(selected, tabTarget))
         return
       }
 
-      if (key.ctrl && key.name === "t" && claudeAccounts.length > 0) {
-        claudeAccountIndex = (claudeAccountIndex + 1) % claudeAccounts.length
+      if (key.ctrl && key.name === "t") {
+        cycleTarget(1)
         render()
         return
       }

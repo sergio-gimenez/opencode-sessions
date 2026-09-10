@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { parseArgs } from "../src/cli-options.js"
-import { parseConfig } from "../src/config.js"
+import { configuredTargets, parseConfig } from "../src/config.js"
 import { buildContinuationPrompt } from "../src/seed.js"
 import type { SessionPreview } from "../src/types.js"
 
@@ -33,8 +33,10 @@ describe("skip-permissions flag", () => {
     expect(parseArgs(["--safe"]).skipPermissions).toBe(false)
   })
 
-  it("selects an initial Claude account", () => {
-    expect(parseArgs(["--claude-account", "CC2"]).claudeAccount).toBe("cc2")
+  it("selects an initial target, however the flag is spelled", () => {
+    expect(parseArgs(["--claude-account", "CC2"]).target).toBe("cc2")
+    expect(parseArgs(["--codex-account", "CX2"]).target).toBe("cx2")
+    expect(parseArgs(["--target", "OC"]).target).toBe("oc")
   })
 })
 
@@ -57,10 +59,63 @@ describe("parseConfig", () => {
     }))
 
     expect(config.claudeAccounts).toEqual([
-      { name: "cc1" },
-      { name: "cc2", configDir: "/tmp/cc2" },
+      { tool: "claude", name: "cc1" },
+      { tool: "claude", name: "cc2", home: "/tmp/cc2" },
     ])
     expect(config.defaultClaudeAccount).toBe("cc2")
+  })
+
+  it("reads Codex accounts from their own home key", () => {
+    const config = parseConfig(JSON.stringify({
+      codexAccounts: [{ name: "cx1" }, { name: "CX2", codexHome: "/tmp/cx2" }],
+      defaultCodexAccount: "cx2",
+    }))
+
+    expect(config.codexAccounts).toEqual([
+      { tool: "codex", name: "cx1" },
+      { tool: "codex", name: "cx2", home: "/tmp/cx2" },
+    ])
+    expect(config.defaultCodexAccount).toBe("cx2")
+  })
+
+  it("gives each tool a default account when none is configured", () => {
+    const config = parseConfig("{}")
+
+    expect(config.claudeAccounts).toEqual([{ tool: "claude", name: "cc" }])
+    expect(config.codexAccounts).toEqual([{ tool: "codex", name: "cx" }])
+  })
+
+  it("lists targets as OpenCode, then Claude, then Codex", () => {
+    const config = parseConfig(JSON.stringify({
+      claudeAccounts: [{ name: "cc1" }, { name: "cc2", configDir: "/tmp/cc2" }],
+      codexAccounts: [{ name: "cx1" }],
+    }))
+
+    expect(configuredTargets(config).map((target) => target.name)).toEqual([
+      "oc",
+      "cc1",
+      "cc2",
+      "cx1",
+    ])
+  })
+
+  // Tab lands on a tool without naming an account, and takes the first one
+  // listed for it — which has to be that tool's configured default.
+  it("leads each tool's group with its default account", () => {
+    const config = parseConfig(JSON.stringify({
+      claudeAccounts: [{ name: "cc1" }, { name: "cc2", configDir: "/tmp/cc2" }],
+      defaultClaudeAccount: "cc2",
+      codexAccounts: [{ name: "cx1" }, { name: "cx2", codexHome: "/tmp/cx2" }],
+      defaultCodexAccount: "cx2",
+    }))
+
+    expect(configuredTargets(config).map((target) => target.name)).toEqual([
+      "oc",
+      "cc2",
+      "cc1",
+      "cx2",
+      "cx1",
+    ])
   })
 })
 

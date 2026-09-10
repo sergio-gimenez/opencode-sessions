@@ -7,8 +7,13 @@ export type CliOptions = {
   search: SessionSearchScope
   // undefined = defer to config file; true/false = explicit CLI override.
   skipPermissions?: boolean
-  claudeAccount?: string
+  // Name of the account (or "oc") the picker should start targeting.
+  target?: string
 }
+
+// --claude-account and --codex-account read better at the call site, but a
+// target is a target: all three flags name one entry of the same list.
+const TARGET_FLAGS = new Set(["--target", "--claude-account", "--codex-account"])
 
 export function parseArgs(argv: string[]): CliOptions {
   let query = ""
@@ -16,7 +21,7 @@ export function parseArgs(argv: string[]): CliOptions {
   let print = false
   let help = false
   let skipPermissions: boolean | undefined
-  let claudeAccount: string | undefined
+  let target: string | undefined
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -52,12 +57,12 @@ export function parseArgs(argv: string[]): CliOptions {
       continue
     }
 
-    if (arg === "--claude-account") {
-      claudeAccount = argv[index + 1]?.trim().toLowerCase()
+    if (TARGET_FLAGS.has(arg)) {
+      target = argv[index + 1]?.trim().toLowerCase()
       index += 1
       continue
     }
   }
 
-  return { print, help, query, search, skipPermissions, claudeAccount }
+  return { print, help, query, search, skipPermissions, target }
 }

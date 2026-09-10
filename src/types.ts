@@ -1,9 +1,12 @@
-export type SessionSource = "opencode" | "claude"
+export type SessionSource = "opencode" | "claude" | "codex"
 
-export type ClaudeAccount = {
+// One configured identity of a tool: a Claude account (its CLAUDE_CONFIG_DIR),
+// a Codex account (its CODEX_HOME), or OpenCode, which has only one.
+export type Account = {
+  tool: SessionSource
   name: string
-  // Omit for Claude Code's default ~/.claude + ~/.claude.json home.
-  configDir?: string
+  // The tool's isolated home. Omit for the tool's own default home.
+  home?: string
 }
 
 export type SessionPreview = {
@@ -17,8 +20,11 @@ export type SessionPreview = {
   prompts: string[]
   assistantSnippets: string[]
   searchText: string
-  claudeAccount?: ClaudeAccount
-  claudeProjectsPath?: string
+  // The account this session belongs to. Unset for OpenCode, which has one.
+  account?: Account
+  // File-backed sources (Claude JSONL, Codex rollout) record where the
+  // transcript lives, so seeding never has to hunt for it again.
+  filePath?: string
 }
 
 export type SessionRow = {

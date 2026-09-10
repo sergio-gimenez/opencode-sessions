@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest"
 
 import { mergeSessions } from "../src/aggregate.js"
 import { getClaudeSessions, parseClaudeSession } from "../src/claude.js"
-import type { SessionPreview } from "../src/types.js"
+import type { Account, SessionPreview } from "../src/types.js"
 
 function jsonl(lines: unknown[]) {
   return lines.map((line) => JSON.stringify(line)).join("\n")
@@ -80,7 +80,7 @@ describe("parseClaudeSession", () => {
 })
 
 describe("getClaudeSessions", () => {
-  it("records the owning Claude account and projects path", () => {
+  it("records the owning Claude account and transcript path", () => {
     const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocs-claude-"))
 
     try {
@@ -88,12 +88,12 @@ describe("getClaudeSessions", () => {
       fs.mkdirSync(projectDir, { recursive: true })
       fs.writeFileSync(path.join(projectDir, "owned.jsonl"), raw)
 
-      const account = { name: "cc2", configDir }
+      const account: Account = { tool: "claude", name: "cc2", home: configDir }
       const sessions = getClaudeSessions({ account })
 
       expect(sessions).toHaveLength(1)
-      expect(sessions[0].claudeAccount).toEqual(account)
-      expect(sessions[0].claudeProjectsPath).toBe(path.join(configDir, "projects"))
+      expect(sessions[0].account).toEqual(account)
+      expect(sessions[0].filePath).toBe(path.join(projectDir, "owned.jsonl"))
     } finally {
       fs.rmSync(configDir, { recursive: true, force: true })
     }
