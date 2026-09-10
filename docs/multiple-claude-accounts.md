@@ -131,8 +131,9 @@ Create `~/.config/ocs/config.json`:
 The account without `configDir` is Claude Code's default home. Account names
 must be unique. They become picker badges such as `[CC1]` and `[CC2]`.
 
-`defaultClaudeAccount` selects the initial target for fresh Claude sessions. It
-does not change which account owns existing sessions.
+`defaultClaudeAccount` is the account Claude routes land on when a route reaches
+Claude without naming one, and it leads the Claude group when the target is
+cycled. It does not change which account owns existing sessions.
 
 ## 4. Use the picker
 
@@ -146,27 +147,30 @@ Picker controls:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | Follow the displayed Claude route; resume OpenCode natively |
-| `Tab` | Open in the other tool as a transcript-seeded session |
-| `Ctrl+T` | Cycle the displayed Claude target account |
-| `Shift+Tab` | Also open or fork into the displayed Claude target account |
+| `Enter` | Follow the displayed route |
+| `Ctrl+F` | Fork the displayed route into a new session |
+| `Ctrl+T` | Cycle the target forwards, across every tool and account |
+| `Shift+Tab` | Cycle the target backwards |
+| `Tab` | Open in the next tool as a transcript-seeded session |
 
-Claude badges preview the selected route. With CC2 targeted, a CC1 session is
-shown as `[CC1→CC2]`; a session already owned by CC2 remains `[CC2]`. Cycling
-back to CC1 reverses cross-account routes to `[CC2→CC1]`.
+Badges preview the selected route. Until the target is cycled it follows the
+selection, so every row shows a single label and `Enter` resumes it in its own
+account. With CC2 targeted, a CC1 session is shown as `[CC1→CC2]`; a session
+already owned by CC2 remains `[CC2]`. Cycling back to CC1 reverses cross-account
+routes to `[CC2→CC1]`.
 
 Set the initial target from the command line:
 
 ```bash
-ocs --claude-account cc2
+ocs --claude-account cc2    # or --target cc2
 ```
 
 ### Continue an old CC1 session with CC2
 
 1. Run `ocs --claude-account cc2`.
 2. Select the old `[CC1]` session.
-3. Confirm the picker says `Claude target: CC2`.
-4. Press `Enter` (or `Shift+Tab`).
+3. Confirm the picker says `Target: CC2` and the badge reads `[CC1→CC2]`.
+4. Press `Enter`.
 
 `ocs` reads the CC1 transcript and starts a fresh CC2 session with that context.
 The original CC1 session remains unchanged. Once Claude Code persists the new
@@ -180,6 +184,9 @@ uses two different paths:
 - Same account: launch `claude --resume` with the owning account's environment.
 - Different account: build a fresh continuation prompt from the transcript and
   launch Claude with the target account's environment.
+
+The same two paths apply to a route that crosses tools, with the target tool's
+own resume command and environment.
 
 A cross-account fork carries conversation text, not hidden model state or the
 source account's credentials. Both sessions still use the same working

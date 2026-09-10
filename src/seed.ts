@@ -4,8 +4,10 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
+import { parseCodexRollout, resolveSessionsPath } from "./codex.js"
 import { collapseWhitespace, truncate } from "./format.js"
-import type { SessionPreview, SessionSource } from "./types.js"
+import { toolName } from "./targets.js"
+import type { SessionPreview } from "./types.js"
 
 // Full transcript, with guards so a huge session doesn't blow the prompt:
 // truncate each turn, then keep the most recent turns within a char budget.
@@ -18,10 +20,6 @@ export type Turn = { role: "user" | "assistant"; text: string }
 export type SessionSeed = {
   directory: string
   prompt: string
-}
-
-function toolName(source: SessionSource) {
-  return source === "claude" ? "Claude Code" : "OpenCode"
 }
 
 function lastTurn(turns: Turn[], role: "user" | "assistant") {
@@ -150,11 +148,13 @@ function claudeText(content: unknown): string {
 }
 
 function findClaudeFile(session: SessionPreview): string | null {
-  const root =
-    session.claudeProjectsPath ??
-    (session.claudeAccount?.configDir
-      ? path.join(session.claudeAccount.configDir, "projects")
-      : process.env.CLAUDE_PROJECTS_PATH ?? path.join(os.homedir(), ".claude", "projects"))
+  // The reader records where it found the transcript; the scan below is the
+  // fallback for previews built without one.
+  if (session.filePath && fs.existsSync(session.filePath)) return session.filePath
+
+  const root = session.account?.home
+    ? path.join(session.account.home, "projects")
+    : process.env.CLAUDE_PROJECTS_PATH ?? path.join(os.homedir(), ".claude", "projects")
 
   let projectDirs: string[]
   try {
@@ -210,13 +210,54 @@ function claudeTranscript(session: SessionPreview): { directory: string; turns: 
   return { directory, turns }
 }
 
+// --- Codex transcript (parse the session rollout JSONL) ------------------
+
+function findCodexFile(session: SessionPreview): string | null {
+  if (session.filePath && fs.existsSync(session.filePath)) return session.filePath
+
+  // Rollouts are filed by date, so without a recorded path the only way back to
+  // one is to walk the tree looking for the id in the file name.
+  const root = resolveSessionsPath(session.account)
+  const stack = [root]
+
+  while (stack.length > 0) {
+    const dir = stack.pop() as string
+
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+
+    for (const entry of entries) {
+      const entryPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) stack.push(entryPath)
+      else if (entry.isFile() && entry.name.includes(session.id)) return entryPath
+    }
+  }
+
+  return null
+}
+
+function codexTranscript(session: SessionPreview): { directory: string; turns: Turn[] } {
+  const filePath = findCodexFile(session)
+  if (!filePath) throw new Error(`Could not find Codex session ${session.id}.`)
+
+  const { directory, turns } = parseCodexRollout(fs.readFileSync(filePath, "utf8"))
+  return { directory: directory || process.cwd(), turns }
+}
+
 // --- Public: build a seed for cross-tool continuation --------------------
 
+const TRANSCRIPT_READERS = {
+  opencode: (session: SessionPreview) => opencodeTranscript(session.id),
+  claude: (session: SessionPreview) => claudeTranscript(session),
+  codex: (session: SessionPreview) => codexTranscript(session),
+}
+
 export async function buildSessionSeed(session: SessionPreview): Promise<SessionSeed> {
-  const { directory, turns } =
-    session.source === "opencode"
-      ? await opencodeTranscript(session.id)
-      : claudeTranscript(session)
+  const { directory, turns } = await TRANSCRIPT_READERS[session.source](session)
 
   return {
     directory,
