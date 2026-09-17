@@ -130,6 +130,26 @@ to keep the general context, and you'd rather continue in the other tool. `Tab`
 is not a live round trip, so treat it as "start fresh over there, with this
 history".
 
+## Sharing memory between tools
+
+A fork carries the conversation, not what the agent has saved to memory.
+Claude Code keeps that in `~/.claude/projects/<project>/memory/`, and two
+third-party plugins let the other tools use the same files.
+`npm run install:local` suggests whichever ones you're missing.
+
+- **OpenCode:** [`opencode-claude-memory`](https://github.com/kuitos/opencode-claude-memory)
+  reads and writes the memory directory and respects `CLAUDE_CONFIG_DIR`. Add
+  `"plugin": ["opencode-claude-memory"]` to `opencode.json`.
+- **Codex:** [`codex-claude-memory-plugin`](https://github.com/gaboe/codex-claude-memory-plugin)
+  loads the project's `MEMORY.md` when a session starts and writes to it only when you ask
+  Codex to remember something. It is young and always reads `~/.claude`, so
+  other Claude accounts' memory isn't picked up.
+
+  ```bash
+  codex plugin marketplace add gaboe/codex-claude-memory-plugin
+  codex plugin add codex-claude-memory-plugin@codex-claude-memory
+  ```
+
 ## Multiple accounts
 
 Claude Code and Codex each keep credentials, config and session history under a

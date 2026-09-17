@@ -31,6 +31,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `npm run demo:gif`) behind the README's animation.
 - CI running typecheck, tests and build on Node 20, 22 and 24.
 - `CONTRIBUTING.md`, issue templates and a pull request template.
+- `npm run install:local` suggests the plugins that share Claude Code memory
+  with OpenCode and Codex, for tools that are installed and don't have one set
+  up yet.
 
 ### Changed
 
